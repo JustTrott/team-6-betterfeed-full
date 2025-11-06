@@ -1,0 +1,29 @@
+# Cursor AI Rules for BetterFeed
+
+## Always Update llms.txt
+
+When making changes to the project, **ALWAYS** update `llms.txt` to reflect:
+- New dependencies added to `package.json`
+- New API routes created in `pages/api/`
+- Changes to database schema in `lib/db/schema.ts`
+- Modifications to project structure
+- New environment variables required
+- Updates to tech stack or versions
+
+## Code Style
+
+- Use TypeScript for all new files
+- Follow Next.js Pages Router conventions
+- Use Supabase client for all database operations
+- Use `handleApiError()` for consistent error handling
+- Use `withAuth()` wrapper for protected routes
+- Follow existing file structure and naming conventions
+
+## Project Structure
+
+- Keep API routes in `pages/api/`
+- Keep database schema in `lib/db/schema.ts`
+- Keep shared utilities in `lib/`
+- Keep type definitions in `types/`
+- Do not create a monorepo structure - this is a single repository
+

@@ -1,0 +1,354 @@
+# BetterFeed - Project Metadata for LLMs
+
+## Project Overview
+
+BetterFeed is an AI-powered smart feed application for scrolling through condensed academic articles presented in a TikTok-style interface. Users can discover, interact with, and save articles from a curated feed powered by real news data.
+
+This is a **single-repository** Next.js application (not a monorepo) that provides a full-stack solution with:
+- Next.js Pages Router for frontend and API routes
+- Supabase client for database operations and authentication
+- TypeScript for type safety
+
+## Tech Stack
+
+### Core Framework
+- **Next.js 16.0.1** - React framework with Pages Router
+- **React 19.2.0** - UI library
+- **TypeScript 5.x** - Type-safe JavaScript
+
+### Database
+- **Supabase** - Database hosting and authentication
+- **@supabase/supabase-js 2.79.0** - Supabase JavaScript client for database operations
+
+### Authentication
+- **@supabase/supabase-js 2.79.0** - Supabase JavaScript client (handles JWT verification)
+- **Zustand 5.0.0** - Client-side state management for auth
+
+### UI Components
+- **@radix-ui/react-avatar 1.1.3** - Avatar component
+- **@radix-ui/react-dialog 1.1.3** - Dialog component
+- **@radix-ui/react-icons 1.1.0** - Icon library
+- **@radix-ui/react-scroll-area 1.1.2** - Scroll area component
+- **@radix-ui/react-slot 1.1.2** - Slot component
+- **lucide-react 0.460.0** - Icon library
+- **motion 12.0.0** - Animation library
+
+### Data Fetching & State
+- **@tanstack/react-query 5.90.6** - Data fetching and caching
+- **Zustand 5.0.0** - State management
+
+### Utilities
+- **class-variance-authority 0.7.0** - Component variant utilities
+- **clsx 2.1.1** - Conditional className utility
+
+### Styling
+- **Tailwind CSS 4.x** - Utility-first CSS framework
+- **@tailwindcss/postcss 4.x** - PostCSS integration
+- Custom CSS with BetterFeed design system (in `styles/globals.css`)
+
+### Development Tools
+- **ESLint 9.x** - Code linting
+- **eslint-config-next 16.0.1** - Next.js ESLint configuration
+
+## Project Structure
+
+```
+/
+├── .cursorrules              # Cursor AI rules
+├── .gitignore                # Git ignore patterns
+├── llms.txt                  # This file - project metadata for LLMs
+├── next.config.ts            # Next.js configuration
+├── tsconfig.json             # TypeScript configuration
+├── package.json              # Dependencies and scripts
+├── components/               # React components
+│   ├── ui/                   # Base UI components (Radix UI wrappers)
+│   │   ├── avatar.tsx        # Avatar component
+│   │   ├── badge.tsx         # Badge component
+│   │   ├── button.tsx        # Button component
+│   │   ├── card.tsx          # Card component
+│   │   ├── dialog.tsx        # Dialog component
+│   │   ├── input.tsx         # Input component
+│   │   ├── scroll-area.tsx   # Scroll area component
+│   │   ├── SearchBar.tsx     # Search bar component
+│   │   └── textarea.tsx      # Textarea component
+│   ├── auth/                 # Authentication components
+│   │   ├── LoginForm.tsx     # Login form
+│   │   ├── ResetPasswordForm.tsx  # Password reset form
+│   │   └── SignupForm.tsx    # Signup form
+│   ├── feed/                 # Feed-related components
+│   │   ├── EngagementBar.tsx # Like/save/view bar
+│   │   ├── FeedCard.tsx      # Feed card component
+│   │   ├── InfiniteScroller.tsx  # Infinite scroll trigger
+│   │   ├── PostComposer.tsx  # Post creation form
+│   │   └── ReadBadge.tsx     # Read status badge
+│   ├── profile/              # Profile components
+│   │   ├── ProfileCard.tsx   # Profile card
+│   │   └── ReadingHistorySection.tsx  # Reading history
+│   ├── AIChatPanel.tsx       # AI chat panel
+│   ├── AppHeader.tsx         # Application header
+│   ├── CategoryTabs.tsx      # Category filter tabs
+│   ├── RouteGuard.tsx        # Protected route wrapper
+│   └── StyleSelector.tsx     # AI style selector
+├── context/                  # React context providers
+│   └── toast.tsx             # Toast notification context
+├── hooks/                    # Custom React hooks
+│   └── useFeed.ts            # Feed data fetching hook
+├── store/                    # State management
+│   └── auth.ts               # Auth store (Zustand)
+├── lib/                      # Shared utilities and libraries
+│   ├── db.ts                 # Database client (localStorage-based mock)
+│   ├── readingHistory.ts     # Reading history utilities
+│   ├── storage.ts            # LocalStorage utilities
+│   └── utils.ts              # General utilities
+│   ├── db/                   # Database configuration and schema
+│   │   ├── schema.ts         # TypeScript type definitions matching database schema
+│   │   └── client.ts         # Supabase client initialization
+│   ├── auth/                 # Authentication utilities
+│   │   ├── middleware.ts     # JWT authentication middleware
+│   │   └── types.ts          # Auth type definitions
+│   └── api/                  # API utilities
+│       └── errors.ts         # Error handling utilities
+├── data/                     # Mock data
+│   └── mocks.ts              # Mock database data
+├── pages/                    # Next.js Pages Router
+│   ├── api/                  # API routes
+│   │   ├── auth/             # Authentication endpoints
+│   │   │   ├── signup.ts     # POST /api/auth/signup
+│   │   │   └── login.ts      # POST /api/auth/login
+│   │   ├── posts/            # Posts endpoints
+│   │   │   ├── index.ts      # GET, POST /api/posts
+│   │   │   ├── [id].ts       # GET, PUT, DELETE /api/posts/[id]
+│   │   │   └── [id]/username.ts  # GET /api/posts/[id]/username
+│   │   └── interactions/      # Interactions endpoints
+│   │       ├── index.ts      # POST /api/interactions
+│   │       └── [id].ts       # GET, DELETE /api/interactions/[id]
+│   ├── post/                 # Post pages
+│   │   └── [id].tsx          # Individual post page
+│   ├── _app.tsx              # Next.js app wrapper (with QueryClient, ToastProvider, Auth)
+│   ├── _document.tsx         # Next.js document wrapper
+│   ├── index.tsx             # Home page (Feed)
+│   ├── login.tsx             # Login page
+│   ├── signup.tsx            # Signup page
+│   ├── saved.tsx             # Saved posts page
+│   └── profile.tsx           # Profile page
+├── types/                    # TypeScript type definitions
+│   ├── api.ts               # API request/response types
+│   ├── database.ts          # Database entity types
+│   └── auth.ts              # Authentication types
+├── sql/                      # SQL schema files
+│   └── schema.sql           # Database schema SQL (reference from original Python backend)
+├── public/                   # Static assets
+│   ├── avatars/              # Avatar images
+│   │   └── default.svg       # Default avatar
+│   └── sparkle.svg           # Sparkle icon
+└── styles/                   # Global styles
+    └── globals.css           # Global CSS styles (BetterFeed design system)
+```
+
+## Database Schema
+
+### Tables
+
+#### `profiles`
+- `id` (UUID, Primary Key) - User identifier, linked to Supabase Auth
+- `email` (TEXT, Unique, Not Null) - User email
+- `username` (TEXT, Unique, Not Null) - Display username
+- `avatar_url` (TEXT, Optional) - User avatar image URL
+- `created_at` (TIMESTAMPTZ, Default: NOW) - Account creation timestamp
+
+#### `posts`
+- `id` (BIGINT, Primary Key, Auto-increment) - Post identifier
+- `user_id` (UUID, Foreign Key → profiles.id) - Post creator
+- `article_url` (TEXT, Not Null) - URL to original article
+- `title` (TEXT, Not Null) - Article title
+- `content` (TEXT, Optional) - Article summary/content
+- `thumbnail_url` (TEXT, Optional) - Article thumbnail image URL
+- `view_count` (INTEGER, Default: 0) - View counter
+- `created_at` (TIMESTAMPTZ, Default: NOW) - Post creation timestamp
+- `updated_at` (TIMESTAMPTZ, Default: NOW) - Last update timestamp (auto-updated)
+
+#### `interactions`
+- `id` (BIGINT, Primary Key, Auto-increment) - Interaction identifier
+- `user_id` (UUID, Foreign Key → profiles.id) - User who interacted
+- `post_id` (BIGINT, Foreign Key → posts.id) - Post that was interacted with
+- `interaction_type` (TEXT, Not Null) - Either 'like' or 'save'
+- `created_at` (TIMESTAMPTZ, Default: NOW) - Interaction timestamp
+- Unique constraint: (user_id, post_id, interaction_type) - Prevents duplicate interactions
+
+### Database Features
+- Row Level Security (RLS) enabled on all tables via Supabase
+- Foreign key constraints with CASCADE delete
+- Automatic timestamp updates via database triggers
+- Indexes on frequently queried columns
+
+## API Endpoints
+
+### Authentication
+- `POST /api/auth/signup` - Register new user
+  - Body: `{ email, password, username }`
+  - Returns: `{ auth: User, profile: Profile }`
+
+- `POST /api/auth/login` - Authenticate user
+  - Body: `{ email, password }`
+  - Returns: `{ user: User, session: Session, access_token: string }`
+
+### Posts
+- `GET /api/posts` - Get all posts (public)
+  - Returns: `Post[]`
+
+- `POST /api/posts` - Create new post (requires auth)
+  - Headers: `Authorization: Bearer <token>`
+  - Body: `{ title, content, article_url, thumbnail_url? }`
+  - Returns: `[Post]`
+
+- `GET /api/posts/[id]` - Get post by ID (public)
+  - Returns: `Post`
+
+- `PUT /api/posts/[id]` - Update post (requires auth, owner only)
+  - Headers: `Authorization: Bearer <token>`
+  - Body: `{ title?, content?, thumbnail_url? }`
+  - Returns: `[Post]`
+
+- `DELETE /api/posts/[id]` - Delete post (requires auth, owner only)
+  - Headers: `Authorization: Bearer <token>`
+  - Returns: `[Post]`
+
+- `GET /api/posts/[id]/username` - Get username by post ID (public)
+  - Returns: `string` (username)
+
+### Interactions
+- `POST /api/interactions` - Create interaction (requires auth)
+  - Headers: `Authorization: Bearer <token>`
+  - Body: `{ post_id, interaction_type: 'like' | 'save' }`
+  - Returns: `[Interaction]`
+
+- `GET /api/interactions/[id]` - Get interactions by post ID (public, where `id` = postId)
+  - Returns: `Interaction[]`
+
+- `DELETE /api/interactions/[id]` - Delete interaction (requires auth, owner only, where `id` = interactionId)
+  - Headers: `Authorization: Bearer <token>`
+  - Returns: `[Interaction]`
+
+## Environment Variables
+
+Required environment variables (see `.env.example`):
+- `SUPABASE_URL` - Supabase project URL
+- `SUPABASE_ANON_KEY` - Supabase anonymous/public key
+- `SUPABASE_SERVICE_KEY` - Supabase service role key (for admin operations)
+
+## NPM Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+- `npm run test:api` - Run API test script
+
+## Development Workflow
+
+1. **Database Changes**: Update database schema in Supabase dashboard using SQL (reference: `sql/schema.sql`)
+2. **Type Definitions**: Update `lib/db/schema.ts` TypeScript interfaces to match database schema changes
+3. **API Routes**: Create routes in `pages/api/` following Next.js Pages Router conventions
+4. **Authentication**: Use `withAuth()` wrapper for protected routes
+5. **Error Handling**: Use `handleApiError()` utility for consistent error responses
+6. **Type Safety**: Use types from `types/` directory for API requests/responses
+
+## Key Patterns
+
+### Authentication Middleware
+Protected routes use the `withAuth()` wrapper:
+```typescript
+import { withAuth } from "@/lib/auth/middleware";
+
+export default withAuth(async (req, res, authResponse) => {
+  // authResponse.user contains authenticated user
+  // authResponse.client contains Supabase client with user token
+});
+```
+
+### Database Queries
+Use Supabase client for database queries:
+```typescript
+import { supabase } from "@/lib/db/client";
+
+// Get all posts
+const { data: posts, error } = await supabase.from("posts").select();
+
+// Get single post
+const { data: post, error } = await supabase
+  .from("posts")
+  .select()
+  .eq("id", postId)
+  .single();
+
+// Create post (using authenticated client)
+const { data: newPost, error } = await authResponse.client
+  .from("posts")
+  .insert({ user_id: userId, title: "Title", article_url: "..." })
+  .select()
+  .single();
+```
+
+### Error Handling
+Use consistent error handling:
+```typescript
+import { handleApiError, ApiError } from "@/lib/api/errors";
+
+try {
+  // ... code
+} catch (error) {
+  return handleApiError(error, res);
+}
+```
+
+## Frontend Architecture
+
+### Client-Side State Management
+- **Zustand** for auth state (`store/auth.ts`)
+- **TanStack Query** for server state and caching (`hooks/useFeed.ts`)
+- **React Context** for toast notifications (`context/toast.tsx`)
+
+### Routing
+Next.js Pages Router with file-based routing:
+- `/` - Feed page (`pages/index.tsx`)
+- `/login` - Login page (`pages/login.tsx`)
+- `/signup` - Signup page (`pages/signup.tsx`)
+- `/post/[id]` - Individual post page (`pages/post/[id].tsx`)
+- `/saved` - Saved posts page (`pages/saved.tsx`)
+- `/profile` - Profile page (`pages/profile.tsx`)
+
+### Component Structure
+- Base UI components in `components/ui/` (Radix UI wrappers)
+- Feature components organized by domain (auth, feed, profile)
+- Shared components in `components/` root
+
+### Data Fetching
+- Uses TanStack Query for posts, interactions, and categories
+- Infinite scroll implemented with `useInfiniteQuery`
+- Optimistic updates for interactions
+- Local storage for reading history and mock database
+
+## Migration Notes
+
+This project was migrated from:
+1. **Python FastAPI backend** → Next.js API routes (Pages Router)
+2. **React SPA with React Router** → Next.js Pages Router
+
+Key migration points:
+- FastAPI routes → Next.js API routes
+- Python type hints → TypeScript types
+- FastAPI middleware → Next.js middleware
+- React Router → Next.js file-based routing
+- React Router `Link`/`NavLink` → Next.js `Link`
+- React Router `useNavigate`/`useLocation` → Next.js `useRouter`
+- Client-side routing adapted to Next.js conventions
+
+## Important Notes
+
+- This is a **single-repository** project (not a monorepo)
+- All database operations use Supabase client directly
+- Supabase RLS policies are enforced at the database level
+- Authentication uses Supabase Auth JWT tokens (Supabase handles all JWT verification)
+- API responses maintain compatibility with original FastAPI structure
+- Database schema is managed in Supabase (SQL), TypeScript types are in `lib/db/schema.ts`
+

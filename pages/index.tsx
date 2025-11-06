@@ -1,78 +1,125 @@
-import Image from "next/image";
-import { Geist, Geist_Mono } from "next/font/google";
+import { useEffect, useState } from 'react'
+import { CategoryTabs } from '../components/CategoryTabs'
+import { FeedCard } from '../components/feed/FeedCard'
+import { InfiniteScroller } from '../components/feed/InfiniteScroller'
+import { PostComposer } from '../components/feed/PostComposer'
+import { AIChatPanel } from '../components/AIChatPanel'
+import { useFeed } from '../hooks/useFeed'
+import { useAuthStore } from '../store/auth'
+import { db } from '../lib/db'
+import { useToast } from '../context/toast'
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+export default function FeedPage() {
+  const { user } = useAuthStore()
+  const { pushToast } = useToast()
+  const {
+    posts,
+    likedIds,
+    savedIds,
+    category,
+    setCategory,
+    isLoading,
+    hasMore,
+    loadMore,
+    toggleLike,
+    toggleSave,
+    refresh,
+  } = useFeed()
+  const [categories, setCategories] = useState(['General'])
+  const [activePost, setActivePost] = useState<any>(null)
+  const [panelOpen, setPanelOpen] = useState(false)
+  
+  // Add search state
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filteredPosts, setFilteredPosts] = useState<any[]>([])
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+  useEffect(() => {
+    db.getCategories().then(setCategories)
+  }, [])
 
-export default function Home() {
+  // Listen for search events from header
+  useEffect(() => {
+    const handleSearch = (e: CustomEvent) => {
+      setSearchTerm(e.detail)
+    }
+    window.addEventListener('feed-search', handleSearch as EventListener)
+    return () => window.removeEventListener('feed-search', handleSearch as EventListener)
+  }, [])
+
+  // Filter posts based on search
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredPosts(posts)
+      return
+    }
+
+    const searchLower = searchTerm.toLowerCase()
+    const filtered = posts.filter((post: any) => 
+      post.title.toLowerCase().includes(searchLower) ||
+      post.content.toLowerCase().includes(searchLower) ||
+      post.category.toLowerCase().includes(searchLower) ||
+      post.source.toLowerCase().includes(searchLower)
+    )
+    
+    setFilteredPosts(filtered)
+  }, [searchTerm, posts])
+
+  const handleCreatePost = async (payload: { title: string; summary: string; url: string; category: string }) => {
+    if (!user) {
+      pushToast({ title: 'Please sign in', description: 'You need an account to add to the feed.' })
+      return
+    }
+
+    const thumbnailFallback = 'https://images.unsplash.com/photo-1526498460520-4c246339dccb?auto=format&fit=crop&w=800&q=80'
+    await db.createPost({
+      user_id: user.id,
+      article_url: payload.url,
+      title: payload.title,
+      content: payload.summary,
+      thumbnail_url: thumbnailFallback,
+      category: payload.category,
+      source: user.username,
+    })
+    pushToast({ title: 'Post added', description: 'Your article is now in the mix!', variant: 'success' })
+    refresh()
+  }
+
+  // Use filteredPosts instead of posts
+  const displayPosts = searchTerm ? filteredPosts : posts
+
   return (
-    <div
-      className={`${geistSans.className} ${geistMono.className} flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black`}
-    >
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the index.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="bf-feed-page">
+      <CategoryTabs categories={categories} active={category} onChange={setCategory} />
+
+      {searchTerm && displayPosts.length === 0 ? (
+        <div className="bf-empty-state">
+          <p>No articles found matching &quot;{searchTerm}&quot;</p>
+          <p className="bf-empty-state__hint">Try different keywords or clear your search</p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+      ) : (
+        <section className="bf-feed-grid">
+          {displayPosts.map((post: any) => (
+            <FeedCard
+              key={post.id}
+              post={post}
+              isLiked={likedIds.has(post.id)}
+              isSaved={savedIds.has(post.id)}
+              onLike={() => toggleLike(post.id)}
+              onSave={() => toggleSave(post.id)}
+              onOpen={() => {
+                setActivePost(post)
+                setPanelOpen(true)
+              }}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs/pages/getting-started?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+          ))}
+
+          {!searchTerm && <InfiniteScroller hasMore={hasMore} isLoading={isLoading} onLoadMore={loadMore} />}
+        </section>
+      )}
+
+      <PostComposer categories={categories} onCreate={handleCreatePost} />
+
+      <AIChatPanel open={panelOpen} onClose={() => setPanelOpen(false)} post={activePost} style="professor" />
     </div>
-  );
+  )
 }
