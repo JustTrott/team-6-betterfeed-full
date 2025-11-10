@@ -5,6 +5,7 @@ import { Textarea } from './ui/textarea'
 import { Button } from './ui/button'
 import { StyleSelector } from './StyleSelector'
 import { cn } from '../lib/utils'
+import { marked } from 'marked'
 
 interface Post {
   id: number | string
@@ -42,32 +43,6 @@ const createMessage = (role: 'user' | 'assistant', content: string): Message => 
   created_at: Date.now(),
 })
 
-const generateAssistantResponse = (styleId: string, post: Post | null, userMessage: string): string => {
-  if (!post) return ''
-
-  const summary = {
-    professor: `Here's a tidy breakdown of "${post.title}".`,
-    debater: `Let's weigh both sides of "${post.title}".`,
-  }[styleId] ?? `Here's what I noticed about "${post.title}".`
-
-  if (styleId === 'debater') {
-    return `${summary}
-
-Pros: ${post.source} spotlights momentum in ${post.category.toLowerCase()} and the thread of opportunity.
-Cons: Watch for assumptions hiding in the methodology—double-check the evidence they cite.
-
-You asked: "${userMessage}". My take: explore how opposing experts frame the same data so you can pressure-test it fast.`
-  }
-
-  return `${summary}
-
-1. Core idea: ${post.content}
-2. Why it matters: ${post.source} ties it to broader shifts in ${post.category.toLowerCase()}.
-3. What to do next: skim the article's closing section for signals worth bookmarking.
-
-You asked: "${userMessage}". Keep that in mind as you compare other coverage.`
-}
-
 interface AIChatPanelProps {
   open: boolean
   onClose: () => void
@@ -82,7 +57,6 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
   const [selectedStyle, setSelectedStyle] = useState(style ?? STYLE_OPTIONS[0].id)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
-  const responseTimerRef = useRef<number | null>(null)
   const messagesEndRef = useRef<HTMLSpanElement>(null)
   const panelTitleId = useId()
 
@@ -140,7 +114,7 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     setMessages([
       createMessage(
         'assistant',
-        `Hi! I'm ready to riff on "${post.title}". Ask a question or share a hunch to get a tailored response.`
+        `Hi! I'm ready to discuss "${post.title}". Ask me anything about the article, request a summary, or explore different perspectives.`
       ),
     ])
     setValue('')
@@ -150,11 +124,7 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isResponding])
 
-  useEffect(() => () => {
-    if (responseTimerRef.current) window.clearTimeout(responseTimerRef.current)
-  }, [])
-
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!value.trim() || !post || isResponding) return
 
@@ -164,11 +134,35 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     setValue('')
     setIsResponding(true)
 
-    responseTimerRef.current = window.setTimeout(() => {
-      const reply = createMessage('assistant', generateAssistantResponse(selectedStyle, post, trimmed))
-      setMessages((prev) => [...prev, reply])
+    try {
+      // Call the DeepSeek API route
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: trimmed,
+          post: post,
+          style: selectedStyle,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to get AI response')
+      }
+
+      const data = await response.json()
+      const assistantMessage = createMessage('assistant', data.response)
+      setMessages((prev) => [...prev, assistantMessage])
+    } catch (error) {
+      console.error('Error getting AI response:', error)
+      const errorMessage = createMessage(
+        'assistant',
+        'Sorry, I encountered an error generating a response. Please try again.'
+      )
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
       setIsResponding(false)
-    }, 600)
+    }
   }
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
@@ -247,8 +241,13 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
                         ? 'bf-chat-slideover__message--assistant'
                         : 'bf-chat-slideover__message--user'
                     )}
+                    dangerouslySetInnerHTML={
+                      message.role === 'assistant'
+                        ? { __html: marked(message.content) as string }
+                        : undefined
+                    }
                   >
-                    {message.content}
+                    {message.role === 'user' ? message.content : null}
                   </motion.div>
                 ))}
                 {isResponding ? (
@@ -290,4 +289,3 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     </AnimatePresence>
   )
 }
-

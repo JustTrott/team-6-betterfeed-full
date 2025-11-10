@@ -2214,3 +2214,58 @@ h6,
     opacity: 1;
   }
 }
+
+/* Markdown styling inside AI chat messages */
+.bf-chat-slideover__message--assistant h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.5rem 0;
+  color: var(--color-primary);
+}
+
+.bf-chat-slideover__message--assistant h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0.6rem 0 0.4rem 0;
+  color: var(--text-primary);
+}
+
+.bf-chat-slideover__message--assistant p {
+  margin: 0.5rem 0;
+}
+
+.bf-chat-slideover__message--assistant ul,
+.bf-chat-slideover__message--assistant ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.bf-chat-slideover__message--assistant li {
+  margin: 0.3rem 0;
+}
+
+.bf-chat-slideover__message--assistant strong {
+  font-weight: 600;
+  color: var(--color-secondary);
+}
+
+.bf-chat-slideover__message--assistant code {
+  background: rgba(0, 102, 19, 0.08);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.88rem;
+}
+
+.bf-chat-slideover__message--assistant pre {
+  background: rgba(28, 37, 65, 0.05);
+  padding: 0.75rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+
+.bf-chat-slideover__message--assistant pre code {
+  background: none;
+  padding: 0;
+}
