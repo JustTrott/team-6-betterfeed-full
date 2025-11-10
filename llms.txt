@@ -7,6 +7,7 @@ BetterFeed is an AI-powered smart feed application for scrolling through condens
 This is a **single-repository** Next.js application (not a monorepo) that provides a full-stack solution with:
 - Next.js Pages Router for frontend and API routes
 - Supabase client for database operations and authentication
+- DeepSeek AI integration for intelligent article analysis
 - TypeScript for type safety
 
 ## Tech Stack
@@ -23,6 +24,10 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 ### Authentication
 - **@supabase/supabase-js 2.79.0** - Supabase JavaScript client (handles JWT verification)
 - **Zustand 5.0.0** - Client-side state management for auth
+
+### AI Integration
+- **openai 4.x** - OpenAI SDK (used for DeepSeek API compatibility)
+- **marked 12.x** - Markdown parser for AI responses
 
 ### UI Components
 - **@radix-ui/react-avatar 1.1.3** - Avatar component
@@ -51,11 +56,11 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 - **eslint-config-next 16.0.1** - Next.js ESLint configuration
 
 ## Project Structure
-
 ```
 /
 ├── .cursorrules              # Cursor AI rules
 ├── .gitignore                # Git ignore patterns
+├── .env.local                # Environment variables (not in git)
 ├── llms.txt                  # This file - project metadata for LLMs
 ├── next.config.ts            # Next.js configuration
 ├── tsconfig.json             # TypeScript configuration
@@ -84,7 +89,7 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 │   ├── profile/              # Profile components
 │   │   ├── ProfileCard.tsx   # Profile card
 │   │   └── ReadingHistorySection.tsx  # Reading history
-│   ├── AIChatPanel.tsx       # AI chat panel
+│   ├── AIChatPanel.tsx       # AI chat panel with DeepSeek integration
 │   ├── AppHeader.tsx         # Application header
 │   ├── CategoryTabs.tsx      # Category filter tabs
 │   ├── RouteGuard.tsx        # Protected route wrapper
@@ -115,6 +120,8 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 │   │   ├── auth/             # Authentication endpoints
 │   │   │   ├── signup.ts     # POST /api/auth/signup
 │   │   │   └── login.ts      # POST /api/auth/login
+│   │   ├── ai/               # AI endpoints
+│   │   │   └── chat.ts       # POST /api/ai/chat - DeepSeek chat completions
 │   │   ├── posts/            # Posts endpoints
 │   │   │   ├── index.ts      # GET, POST /api/posts
 │   │   │   ├── [id].ts       # GET, PUT, DELETE /api/posts/[id]
@@ -137,6 +144,8 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 │   └── auth.ts              # Authentication types
 ├── sql/                      # SQL schema files
 │   └── schema.sql           # Database schema SQL (reference from original Python backend)
+├── scripts/                  # Utility scripts
+│   └── test-api.js          # API testing script
 ├── public/                   # Static assets
 │   ├── avatars/              # Avatar images
 │   │   └── default.svg       # Default avatar
@@ -144,6 +153,51 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 └── styles/                   # Global styles
     └── globals.css           # Global CSS styles (BetterFeed design system)
 ```
+
+## AI Features
+
+### Chat Assistant
+The application includes an AI-powered chat assistant that provides contextual analysis of articles using DeepSeek.
+
+**Implementation:**
+- **Frontend**: `components/AIChatPanel.tsx` - Chat UI with style selection and markdown rendering
+- **Backend**: `pages/api/ai/chat.ts` - DeepSeek API integration
+- **Markdown Rendering**: Uses `marked` library to parse and display formatted AI responses
+
+**Available Styles:**
+- **Professor**: Structured, insightful explanations with calm delivery. Provides clear, educational responses with numbered points when appropriate.
+- **Debater**: Contrast-driven analysis surfacing pros and cons. Presents balanced perspectives and helps users critically evaluate information.
+
+**API Route:**
+- **Endpoint**: `POST /api/ai/chat`
+- **Request Body**: 
+```json
+  {
+    "message": "string",
+    "post": {
+      "id": "number|string",
+      "title": "string",
+      "content": "string",
+      "category": "string",
+      "source": "string",
+      "created_at": "string"
+    },
+    "style": "professor" | "debater"
+  }
+```
+- **Response**: 
+```json
+  {
+    "response": "string (markdown-formatted)"
+  }
+```
+
+**Features:**
+- Real-time AI chat with article context
+- Style switching during conversation
+- Markdown-formatted responses with headers, lists, and emphasis
+- Conversation history maintained per article
+- Smooth animations and accessibility features
 
 ## Database Schema
 
@@ -192,6 +246,12 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
   - Body: `{ email, password }`
   - Returns: `{ user: User, session: Session, access_token: string }`
 
+### AI Chat
+- `POST /api/ai/chat` - Generate AI response for article discussion
+  - Body: `{ message: string, post: Post, style: 'professor' | 'debater' }`
+  - Returns: `{ response: string }` (markdown-formatted)
+  - Note: No authentication required (uses server-side API key)
+
 ### Posts
 - `GET /api/posts` - Get all posts (public)
   - Returns: `Post[]`
@@ -231,10 +291,18 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 
 ## Environment Variables
 
-Required environment variables (see `.env.example`):
-- `SUPABASE_URL` - Supabase project URL
-- `SUPABASE_ANON_KEY` - Supabase anonymous/public key
-- `SUPABASE_SERVICE_KEY` - Supabase service role key (for admin operations)
+Required environment variables (create `.env.local`):
+```
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_KEY=your_supabase_service_key
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+```
+
+- **SUPABASE_URL**: Supabase project URL
+- **SUPABASE_ANON_KEY**: Supabase anonymous/public key
+- **SUPABASE_SERVICE_KEY**: Supabase service role key (for admin operations)
+- **DEEPSEEK_API_KEY**: DeepSeek API key for AI chat functionality
 
 ## NPM Scripts
 
@@ -301,6 +369,24 @@ try {
 }
 ```
 
+### AI Integration
+Call DeepSeek API for article analysis:
+```typescript
+// In frontend components
+const response = await fetch('/api/ai/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    message: userMessage,
+    post: currentPost,
+    style: selectedStyle,
+  }),
+});
+
+const data = await response.json();
+// data.response contains markdown-formatted AI response
+```
+
 ## Frontend Architecture
 
 ### Client-Side State Management
@@ -321,12 +407,14 @@ Next.js Pages Router with file-based routing:
 - Base UI components in `components/ui/` (Radix UI wrappers)
 - Feature components organized by domain (auth, feed, profile)
 - Shared components in `components/` root
+- AI chat panel with markdown rendering in `components/AIChatPanel.tsx`
 
 ### Data Fetching
 - Uses TanStack Query for posts, interactions, and categories
 - Infinite scroll implemented with `useInfiniteQuery`
 - Optimistic updates for interactions
 - Local storage for reading history and mock database
+- Real-time AI responses via fetch API
 
 ## Migration Notes
 
@@ -349,6 +437,7 @@ Key migration points:
 - All database operations use Supabase client directly
 - Supabase RLS policies are enforced at the database level
 - Authentication uses Supabase Auth JWT tokens (Supabase handles all JWT verification)
+- AI chat uses DeepSeek API with server-side API key (no client-side exposure)
 - API responses maintain compatibility with original FastAPI structure
 - Database schema is managed in Supabase (SQL), TypeScript types are in `lib/db/schema.ts`
-
+- AI responses are markdown-formatted and parsed client-side using `marked` library
