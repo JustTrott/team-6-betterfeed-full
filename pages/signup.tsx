@@ -18,8 +18,8 @@ export default function SignupPage() {
         <CardContent>
           <SignupForm
             loading={loading}
-            onSubmit={async ({ email, username }) => {
-              await signup({ email, username })
+            onSubmit={async ({ email, password, username }) => {
+              await signup({ email, password, username })
               router.push('/')
             }}
           />

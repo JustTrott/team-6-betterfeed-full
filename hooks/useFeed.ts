@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
-import { db } from '../lib/db'
 import { useAuthStore } from '../store/auth'
 import { useToast } from '../context/toast'
 import type { ArticleResponse } from '../app/api/articles/fetch/route'
+import type { Interaction } from '../lib/db/schema'
 
 interface InteractionState {
   likes: Set<number | string>
@@ -47,24 +47,17 @@ interface PostsQueryData {
 const createInteractionState = (): InteractionState => ({ likes: new Set(), saves: new Set() })
 
 export const useFeed = () => {
-  const { user } = useAuthStore()
+  const { user, accessToken } = useAuthStore()
   const { pushToast } = useToast()
   const queryClient = useQueryClient()
   const [category, setCategoryState] = useState('General')
 
-  // Fetch user interactions
+  // Fetch user interactions - populated when posts are fetched
   const { data: interactionsData } = useQuery({
     queryKey: ['user-interactions', user?.id],
     queryFn: async () => {
-      if (!user) return createInteractionState()
-      const records = await db.getUserInteractions(user.id)
-      const likes = new Set<number | string>()
-      const saves = new Set<number | string>()
-      records.forEach((item) => {
-        if (item.interaction_type === 'like') likes.add(item.post_id)
-        if (item.interaction_type === 'save') saves.add(item.post_id)
-      })
-      return { likes, saves }
+      if (!user || !user.id) return createInteractionState()
+      return createInteractionState()
     },
     enabled: !!user,
     staleTime: 2 * 60 * 1000, // 2 minutes
@@ -105,20 +98,74 @@ export const useFeed = () => {
 
       const data: FetchArticlesResponse = await response.json()
       
+      // Fetch posts from database to get post IDs and interaction counts
+      const postsResponse = await fetch('/api/posts')
+      const posts = postsResponse.ok ? (await postsResponse.json() as Array<{ id: number; article_url: string; view_count: number }>) : []
+      
+      // Create a map of article_url to post data
+      const postMap = new Map(posts.map((p) => [p.article_url, p]))
+      
+      // Fetch interactions for all posts in parallel
+      const postIds = Array.from(postMap.values()).map((p) => p.id)
+      const interactionsPromises = postIds.map(async (postId) => {
+        const response = await fetch(`/api/interactions/${postId}`)
+        if (response.ok) {
+          const interactions: Interaction[] = await response.json()
+          return { postId, interactions }
+        }
+        return { postId, interactions: [] }
+      })
+      
+      const interactionsResults = await Promise.all(interactionsPromises)
+      const interactionsMap = new Map(
+        interactionsResults.map((r) => [r.postId, r.interactions])
+      )
+      
+      // Update user interactions state
+      if (user) {
+        const userLikes = new Set<number | string>()
+        const userSaves = new Set<number | string>()
+        
+        interactionsMap.forEach((interactions, postId) => {
+          // Check for both like and save separately (user can have both)
+          const userLike = interactions.find((i) => i.user_id === user.id && i.interaction_type === 'like')
+          const userSave = interactions.find((i) => i.user_id === user.id && i.interaction_type === 'save')
+          
+          if (userLike) {
+            userLikes.add(postId)
+          }
+          if (userSave) {
+            userSaves.add(postId)
+          }
+        })
+        
+        queryClient.setQueryData(['user-interactions', user.id], {
+          likes: userLikes,
+          saves: userSaves,
+        })
+      }
+      
       // Transform API response to match expected format
-      const items: FeedPost[] = data.articles.map((article: ArticleResponse) => ({
-        id: article.id,
-        title: article.title,
-        content: article.content,
-        article_url: article.article_url,
-        thumbnail_url: article.thumbnail_url,
-        source: article.source || 'arXiv',
-        category: article.category || 'General',
-        created_at: article.created_at,
-        like_count: 0,
-        save_count: 0,
-        view_count: 0,
-      }))
+      const items: FeedPost[] = data.articles.map((article: ArticleResponse) => {
+        const dbPost = postMap.get(article.article_url)
+        const interactions = dbPost ? interactionsMap.get(dbPost.id) || [] : []
+        const likeCount = interactions.filter((i) => i.interaction_type === 'like').length
+        const saveCount = interactions.filter((i) => i.interaction_type === 'save').length
+        
+        return {
+          id: dbPost?.id || article.id,
+          title: article.title,
+          content: article.content,
+          article_url: article.article_url,
+          thumbnail_url: article.thumbnail_url,
+          source: article.source || 'arXiv',
+          category: article.category || 'General',
+          created_at: article.created_at,
+          like_count: likeCount,
+          save_count: saveCount,
+          view_count: dbPost?.view_count || 0,
+        }
+      })
 
       return {
         items,
@@ -151,11 +198,20 @@ export const useFeed = () => {
       return
     }
 
-    // Optimistic update
+    // Get current post to get counts
+    const currentPost = queryClient.getQueryData<PostsQueryData>(['posts', category])
+      ?.pages.flatMap((p) => p.items)
+      .find((p) => p.id === postId)
+
+    if (!currentPost) {
+      pushToast({ title: 'Error', description: 'Post not found', variant: 'error' })
+      return
+    }
+
     const targetSet = type === 'like' ? interactions.likes : interactions.saves
     const isActive = targetSet.has(postId)
 
-    // Update interactions cache optimistically
+    // Optimistic update
     queryClient.setQueryData(['user-interactions', user.id], (old: InteractionState) => {
       const newInteractions = createInteractionState()
       old.likes.forEach((id) => newInteractions.likes.add(id))
@@ -189,41 +245,128 @@ export const useFeed = () => {
     })
 
     try {
-      const result = await db.toggleInteraction(user.id, postId, type)
-      
-      // Update with server response
-      queryClient.setQueryData(['user-interactions', user.id], (old: InteractionState) => {
-        const newInteractions = createInteractionState()
-        old.likes.forEach((id) => newInteractions.likes.add(id))
-        old.saves.forEach((id) => newInteractions.saves.add(id))
-        const target = type === 'like' ? newInteractions.likes : newInteractions.saves
-        if (result.active) {
-          target.add(postId)
-        } else {
-          target.delete(postId)
-        }
-        return newInteractions
-      })
+      // Check if interaction already exists
+      const interactionsResponse = await fetch(`/api/interactions/${postId}`)
+      const existingInteractions: Interaction[] = interactionsResponse.ok
+        ? await interactionsResponse.json()
+        : []
 
-      // Update posts with server response
-      queryClient.setQueryData<PostsQueryData>(['posts', category], (old) => {
-        if (!old) return old
-        return {
-          ...old,
-          pages: old.pages.map((page) => ({
-            ...page,
-            items: page.items.map((post) =>
-              post.id === postId
-                ? { ...post, like_count: result.post.like_count, save_count: result.post.save_count }
-                : post
-            ),
-          })),
+      const existingInteraction = existingInteractions.find(
+        (i) => i.user_id === user.id && i.interaction_type === type
+      )
+
+      if (existingInteraction) {
+        // Delete existing interaction
+        const deleteResponse = await fetch(`/api/interactions/${existingInteraction.id}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken || ''}`,
+          },
+        })
+
+        if (!deleteResponse.ok) {
+          throw new Error('Failed to delete interaction')
         }
-      })
+
+        // Update user interactions state
+        queryClient.setQueryData(['user-interactions', user.id], (old: InteractionState) => {
+          const newInteractions = createInteractionState()
+          old.likes.forEach((id) => newInteractions.likes.add(id))
+          old.saves.forEach((id) => newInteractions.saves.add(id))
+          const target = type === 'like' ? newInteractions.likes : newInteractions.saves
+          target.delete(postId)
+          return newInteractions
+        })
+
+        // Refresh interactions to get updated counts
+        const updatedInteractionsResponse = await fetch(`/api/interactions/${postId}`)
+        if (updatedInteractionsResponse.ok) {
+          const updatedInteractions: Interaction[] = await updatedInteractionsResponse.json()
+          const likeCount = updatedInteractions.filter((i) => i.interaction_type === 'like').length
+          const saveCount = updatedInteractions.filter((i) => i.interaction_type === 'save').length
+
+          queryClient.setQueryData<PostsQueryData>(['posts', category], (old) => {
+            if (!old) return old
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                items: page.items.map((post) =>
+                  post.id === postId
+                    ? {
+                        ...post,
+                        like_count: likeCount,
+                        save_count: saveCount,
+                      }
+                    : post
+                ),
+              })),
+            }
+          })
+        }
+      } else {
+        // Create new interaction
+        const createResponse = await fetch('/api/interactions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken || ''}`,
+          },
+          body: JSON.stringify({
+            post_id: typeof postId === 'string' ? parseInt(postId, 10) : postId,
+            interaction_type: type,
+          }),
+        })
+
+        if (!createResponse.ok) {
+          throw new Error('Failed to create interaction')
+        }
+
+        // Update user interactions state
+        queryClient.setQueryData(['user-interactions', user.id], (old: InteractionState) => {
+          const newInteractions = createInteractionState()
+          old.likes.forEach((id) => newInteractions.likes.add(id))
+          old.saves.forEach((id) => newInteractions.saves.add(id))
+          const target = type === 'like' ? newInteractions.likes : newInteractions.saves
+          target.add(postId)
+          return newInteractions
+        })
+
+        // Refresh interactions to get updated counts
+        const updatedInteractionsResponse = await fetch(`/api/interactions/${postId}`)
+        if (updatedInteractionsResponse.ok) {
+          const updatedInteractions: Interaction[] = await updatedInteractionsResponse.json()
+          const likeCount = updatedInteractions.filter((i) => i.interaction_type === 'like').length
+          const saveCount = updatedInteractions.filter((i) => i.interaction_type === 'save').length
+
+          queryClient.setQueryData<PostsQueryData>(['posts', category], (old) => {
+            if (!old) return old
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                items: page.items.map((post) =>
+                  post.id === postId
+                    ? {
+                        ...post,
+                        like_count: likeCount,
+                        save_count: saveCount,
+                      }
+                    : post
+                ),
+              })),
+            }
+          })
+        }
+      }
     } catch (error) {
       console.error(error)
-      pushToast({ title: 'Something went wrong', description: 'Unable to update the interaction.', variant: 'error' })
-      
+      pushToast({
+        title: 'Something went wrong',
+        description: 'Unable to update the interaction.',
+        variant: 'error',
+      })
+
       // Revert optimistic updates
       queryClient.invalidateQueries({ queryKey: ['user-interactions', user.id] })
       queryClient.invalidateQueries({ queryKey: ['posts', category] })

@@ -1,24 +1,51 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { db } from '../lib/db'
 import { useAuthStore } from '../store/auth'
 import { ProfileCard } from '../components/profile/ProfileCard'
 import { ReadingHistorySection } from '../components/profile/ReadingHistorySection'
 import { Badge } from '../components/ui/badge'
+import type { Post, Profile } from '../lib/db/schema'
+import type { Interaction } from '../lib/db/schema'
+import { useToast } from '../context/toast'
 
 export default function ProfilePage() {
   const router = useRouter()
-  const { user, logout } = useAuthStore()
-  const [interactions, setInteractions] = useState<any[]>([])
-  const [posts, setPosts] = useState<any[]>([])
+  const { user, logout, accessToken } = useAuthStore()
+  const { pushToast } = useToast()
+  const [interactions, setInteractions] = useState<Interaction[]>([])
+  const [posts, setPosts] = useState<Post[]>([])
 
   useEffect(() => {
     if (!user) return
-    db.getUserInteractions(user.id).then(setInteractions)
-    db.getPosts({ limit: 200 }).then((response) => {
-      setPosts(response.items)
-    })
+
+    const fetchData = async () => {
+      try {
+        // Fetch all posts
+        const postsResponse = await fetch('/api/posts')
+        if (!postsResponse.ok) throw new Error('Failed to fetch posts')
+        const allPosts: Post[] = await postsResponse.json()
+        setPosts(allPosts)
+
+        // Fetch all interactions for all posts to get user's interactions
+        const interactionPromises = allPosts.map(async (post) => {
+          const response = await fetch(`/api/interactions/${post.id}`)
+          if (response.ok) {
+            const interactions: Interaction[] = await response.json()
+            return interactions.filter((i) => i.user_id === user.id)
+          }
+          return []
+        })
+
+        const allUserInteractions = (await Promise.all(interactionPromises)).flat()
+        setInteractions(allUserInteractions)
+      } catch (error) {
+        console.error('Error fetching profile data:', error)
+        pushToast({ title: 'Error', description: 'Failed to load profile data', variant: 'error' })
+      }
+    }
+
+    fetchData()
   }, [user?.id])
 
   if (!user) {
@@ -39,8 +66,37 @@ export default function ProfilePage() {
       <ProfileCard
         profile={user}
         onUpdate={async (payload) => {
-          const updated = await db.updateProfile({ id: user.id, ...payload })
-          useAuthStore.setState({ user: updated })
+          if (!accessToken) {
+            pushToast({ title: 'Error', description: 'Authentication required', variant: 'error' })
+            return
+          }
+
+          try {
+            const response = await fetch('/api/auth/profile', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify(payload),
+            })
+
+            if (!response.ok) {
+              const error = await response.json()
+              throw new Error(error.error || 'Failed to update profile')
+            }
+
+            const updated: Profile = await response.json()
+            useAuthStore.setState({ user: updated })
+            pushToast({ title: 'Success', description: 'Profile updated', variant: 'success' })
+          } catch (error) {
+            console.error('Error updating profile:', error)
+            pushToast({ 
+              title: 'Error', 
+              description: error instanceof Error ? error.message : 'Failed to update profile', 
+              variant: 'error' 
+            })
+          }
         }}
       />
 
@@ -97,7 +153,7 @@ export default function ProfilePage() {
                   <p className="bf-authored-card__title">{post.title}</p>
                   <p className="bf-authored-card__date">{new Date(post.created_at).toLocaleDateString()}</p>
                 </div>
-                <Badge variant="muted">{post.category}</Badge>
+                <Badge variant="muted">Article</Badge>
               </Link>
             ))}
           </div>

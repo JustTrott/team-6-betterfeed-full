@@ -4,11 +4,12 @@ import { Button } from '../ui/button'
 
 interface SignupFormProps {
   loading: boolean
-  onSubmit: (data: { email: string; username: string }) => Promise<void>
+  onSubmit: (data: { email: string; password: string; username: string }) => Promise<void>
 }
 
 export const SignupForm = ({ loading, onSubmit }: SignupFormProps) => {
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -16,7 +17,7 @@ export const SignupForm = ({ loading, onSubmit }: SignupFormProps) => {
     event.preventDefault()
     try {
       setError(null)
-      await onSubmit({ email, username })
+      await onSubmit({ email, password, username })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to sign up')
     }
@@ -35,6 +36,20 @@ export const SignupForm = ({ loading, onSubmit }: SignupFormProps) => {
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@example.com"
           required
+        />
+      </div>
+      <div className="bf-field">
+        <label className="bf-field__label" htmlFor="signup-password">
+          Password
+        </label>
+        <Input
+          id="signup-password"
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="Create a password"
+          required
+          minLength={6}
         />
       </div>
       <div className="bf-field">

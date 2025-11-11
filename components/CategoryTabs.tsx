@@ -38,15 +38,18 @@ export const CategoryTabs = ({ categories, active, onChange }: CategoryTabsProps
       <ul className="bf-category-tabs__list">
         {categories.map((category) => {
           const isActive = category === active
+          const isDisabled = category !== 'General'
           return (
-            <li key={category} className={cn('bf-category-tabs__item', isActive && 'is-active')}>
+            <li key={category} className={cn('bf-category-tabs__item', isActive && 'is-active', isDisabled && 'is-disabled')}>
               <button
                 ref={isActive ? activeRef : undefined}
                 type="button"
                 role="tab"
                 aria-selected={isActive}
+                aria-disabled={isDisabled}
                 className="bf-category-tabs__link"
-                onClick={() => onChange(category)}
+                onClick={() => !isDisabled && onChange(category)}
+                disabled={isDisabled}
               >
                 {category}
               </button>

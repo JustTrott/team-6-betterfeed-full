@@ -6,11 +6,25 @@ import { PostComposer } from '../components/feed/PostComposer'
 import { AIChatPanel } from '../components/AIChatPanel'
 import { useFeed } from '../hooks/useFeed'
 import { useAuthStore } from '../store/auth'
-import { db } from '../lib/db'
 import { useToast } from '../context/toast'
 
+// Common arXiv categories
+const ARXIV_CATEGORIES = [
+  'General',
+  'All',
+  'cs.AI', // Artificial Intelligence
+  'cs.LG', // Machine Learning
+  'cs.CV', // Computer Vision
+  'cs.CL', // Computation and Language
+  'cs.NE', // Neural and Evolutionary Computing
+  'math.CO', // Combinatorics
+  'math.PR', // Probability
+  'physics.optics', // Optics
+  'physics.quant-ph', // Quantum Physics
+]
+
 export default function FeedPage() {
-  const { user } = useAuthStore()
+  const { user, accessToken } = useAuthStore()
   const { pushToast } = useToast()
   const {
     posts,
@@ -25,17 +39,13 @@ export default function FeedPage() {
     toggleSave,
     refresh,
   } = useFeed()
-  const [categories, setCategories] = useState(['General'])
+  const [categories] = useState(ARXIV_CATEGORIES)
   const [activePost, setActivePost] = useState<any>(null)
   const [panelOpen, setPanelOpen] = useState(false)
   
   // Add search state
   const [searchTerm, setSearchTerm] = useState('')
   const [filteredPosts, setFilteredPosts] = useState<any[]>([])
-
-  useEffect(() => {
-    db.getCategories().then(setCategories)
-  }, [])
 
   // Listen for search events from header
   useEffect(() => {
@@ -65,23 +75,42 @@ export default function FeedPage() {
   }, [searchTerm, posts])
 
   const handleCreatePost = async (payload: { title: string; summary: string; url: string; category: string }) => {
-    if (!user) {
+    if (!user || !accessToken) {
       pushToast({ title: 'Please sign in', description: 'You need an account to add to the feed.' })
       return
     }
 
-    const thumbnailFallback = 'https://images.unsplash.com/photo-1526498460520-4c246339dccb?auto=format&fit=crop&w=800&q=80'
-    await db.createPost({
-      user_id: user.id,
-      article_url: payload.url,
-      title: payload.title,
-      content: payload.summary,
-      thumbnail_url: thumbnailFallback,
-      category: payload.category,
-      source: user.username,
-    })
-    pushToast({ title: 'Post added', description: 'Your article is now in the mix!', variant: 'success' })
-    refresh()
+    try {
+      const thumbnailFallback = 'https://images.unsplash.com/photo-1526498460520-4c246339dccb?auto=format&fit=crop&w=800&q=80'
+      const response = await fetch('/api/posts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          title: payload.title,
+          content: payload.summary,
+          article_url: payload.url,
+          thumbnail_url: thumbnailFallback,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to create post')
+      }
+
+      pushToast({ title: 'Post added', description: 'Your article is now in the mix!', variant: 'success' })
+      refresh()
+    } catch (error) {
+      console.error('Error creating post:', error)
+      pushToast({ 
+        title: 'Error', 
+        description: error instanceof Error ? error.message : 'Failed to create post', 
+        variant: 'error' 
+      })
+    }
   }
 
   // Use filteredPosts instead of posts

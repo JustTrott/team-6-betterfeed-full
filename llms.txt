@@ -112,7 +112,6 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 ├── store/                    # State management
 │   └── auth.ts               # Auth store (Zustand)
 ├── lib/                      # Shared utilities and libraries
-│   ├── db.ts                 # Database client (localStorage-based mock)
 │   ├── readingHistory.ts     # Reading history utilities
 │   ├── storage.ts            # LocalStorage utilities
 │   └── utils.ts              # General utilities
@@ -127,8 +126,6 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 │   └── services/             # External service integrations
 │       ├── arxiv.ts           # arXiv API service for fetching scientific preprints
 │       └── summarize.ts       # AI summary generation service using DeepSeek
-├── data/                     # Mock data
-│   └── mocks.ts              # Mock database data
 ├── app/                       # Next.js App Router (for AI SDK compatibility)
 │   └── api/                   # App Router API routes
 │       ├── chat/              # AI chat endpoint
@@ -263,10 +260,23 @@ The application includes an AI-powered chat assistant that provides contextual a
 - `POST /api/auth/signup` - Register new user
   - Body: `{ email, password, username }`
   - Returns: `{ auth: User, profile: Profile }`
+  - Note: Creates user in Supabase Auth and profile in database. Client-side auth store automatically signs in after signup.
 
 - `POST /api/auth/login` - Authenticate user
   - Body: `{ email, password }`
-  - Returns: `{ user: User, session: Session, access_token: string }`
+  - Returns: `{ user: User, profile: Profile, session: Session, access_token: string }`
+  - Note: Authenticates with Supabase Auth and returns session token with user profile. Client-side auth store stores token and profile.
+
+- `GET /api/auth/profile` - Get current user's profile (requires authentication)
+  - Headers: `Authorization: Bearer <token>`
+  - Returns: `Profile`
+  - Note: Returns the authenticated user's profile. Used for session hydration on app load.
+
+- `PUT /api/auth/profile` - Update current user's profile (requires authentication)
+  - Headers: `Authorization: Bearer <token>`
+  - Body: `{ username?: string, avatar_url?: string }`
+  - Returns: `Profile`
+  - Note: Updates the authenticated user's profile. Only username and avatar_url can be updated.
 
 ### AI Chat
 - `POST /api/chat` - Generate AI response for article discussion
@@ -327,18 +337,28 @@ The application includes an AI-powered chat assistant that provides contextual a
 
 Required environment variables (create `.env.local`):
 ```
+# Server-side (used in API routes and server components)
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_KEY=your_supabase_service_key
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
+
+# Client-side (used in browser/client components)
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-- **SUPABASE_URL**: Supabase project URL
-- **SUPABASE_ANON_KEY**: Supabase anonymous/public key
-- **SUPABASE_SERVICE_KEY**: Supabase service role key (for admin operations)
-- **DEEPSEEK_API_KEY**: DeepSeek API key for AI chat and article summarization
+- **SUPABASE_URL**: Supabase project URL (server-side)
+- **SUPABASE_ANON_KEY**: Supabase anonymous/public key (server-side)
+- **SUPABASE_SERVICE_KEY**: Supabase service role key (for admin operations, server-side only)
+- **DEEPSEEK_API_KEY**: DeepSeek API key for AI chat and article summarization (server-side only)
+- **NEXT_PUBLIC_SUPABASE_URL**: Supabase project URL (client-side, must be prefixed with NEXT_PUBLIC_)
+- **NEXT_PUBLIC_SUPABASE_ANON_KEY**: Supabase anonymous/public key (client-side, must be prefixed with NEXT_PUBLIC_)
 
-**Note**: arXiv API is free and requires no authentication. All articles are open access preprints.
+**Note**: 
+- arXiv API is free and requires no authentication. All articles are open access preprints.
+- Client-side environment variables must be prefixed with `NEXT_PUBLIC_` to be accessible in the browser.
+- Server-side variables (without `NEXT_PUBLIC_` prefix) are only available in API routes and server components.
 
 ## NPM Scripts
 
@@ -451,7 +471,7 @@ Next.js Pages Router with file-based routing:
 - Uses TanStack Query for posts, interactions, and categories
 - Infinite scroll implemented with `useInfiniteQuery`
 - Optimistic updates for interactions
-- Local storage for reading history and mock database
+  - Local storage for reading history (client-side only)
 - Real-time AI responses via fetch API
   - **arXiv API Integration**: Fetches scientific preprints on-demand from arXiv API
   - Service: `lib/services/arxiv.ts` - arXiv API client for fetching preprints

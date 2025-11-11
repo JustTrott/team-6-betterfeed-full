@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { supabaseAdmin } from "@/lib/db/client";
 import { handleApiError, ApiError } from "@/lib/api/errors";
 import { LoginCredentials, LoginResponse } from "@/lib/auth/types";
+import { Profile } from "@/lib/db/schema";
 
 export default async function handler(
   req: NextApiRequest,
@@ -32,8 +33,20 @@ export default async function handler(
       throw new ApiError(401, `Invalid email or password: ${authError?.message || "Unknown error"}`);
     }
 
+    // Fetch user profile
+    const { data: profile, error: profileError } = await supabaseAdmin!
+      .from("profiles")
+      .select("*")
+      .eq("id", authData.user.id)
+      .single();
+
+    if (profileError || !profile) {
+      throw new ApiError(500, `Error fetching profile: ${profileError?.message || "Unknown error"}`);
+    }
+
     const response: LoginResponse = {
       user: authData.user,
+      profile: profile as Profile,
       session: {
         access_token: authData.session.access_token,
         refresh_token: authData.session.refresh_token,

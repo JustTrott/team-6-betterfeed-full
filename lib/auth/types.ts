@@ -1,5 +1,6 @@
 import { User } from "@supabase/supabase-js";
 import { SupabaseClient } from "@supabase/supabase-js";
+import { Profile } from "../db/schema";
 
 export interface AuthResponse {
   user: User;
@@ -19,6 +20,7 @@ export interface LoginCredentials {
 
 export interface LoginResponse {
   user: User;
+  profile: Profile;
   session: {
     access_token: string;
     refresh_token: string;

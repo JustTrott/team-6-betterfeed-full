@@ -37,8 +37,69 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen }: Fee
   const touchStartRef = useRef<number | null>(null)
   const touchEndRef = useRef<number | null>(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
+  const [isExpanded, setIsExpanded] = useState(false)
 
   const minSwipeDistance = 50 // Minimum distance for a swipe
+
+  // Truncate content to 50 words
+  const truncateContent = (text: string, wordLimit: number = 50): { truncated: string; needsTruncation: boolean } => {
+    if (!text) return { truncated: '', needsTruncation: false }
+    
+    // Remove LaTeX commands for word counting (simple approach)
+    const plainText = text.replace(/\$[^$]+\$/g, ' ').replace(/\\[a-zA-Z]+\{[^}]*\}/g, ' ').replace(/\s+/g, ' ').trim()
+    const words = plainText.split(/\s+/)
+    
+    if (words.length <= wordLimit) {
+      return { truncated: text, needsTruncation: false }
+    }
+    
+    // Find a good break point by counting words in the original text
+    // We'll find where approximately wordLimit words end
+    let wordCount = 0
+    let charIndex = 0
+    let inLatex = false
+    
+    for (let i = 0; i < text.length && wordCount < wordLimit; i++) {
+      const char = text[i]
+      
+      // Track LaTeX delimiters
+      if (char === '$' && (i === 0 || text[i - 1] !== '\\')) {
+        inLatex = !inLatex
+        continue
+      }
+      
+      // Skip LaTeX content for word counting
+      if (inLatex) continue
+      
+      // Count words (spaces indicate word boundaries)
+      if (char === ' ' || char === '\n' || char === '\t') {
+        if (i > 0 && text[i - 1] !== ' ' && text[i - 1] !== '\n' && text[i - 1] !== '\t') {
+          wordCount++
+        }
+      }
+      
+      charIndex = i
+    }
+    
+    // Find a good break point (end of sentence or word boundary)
+    let breakPoint = charIndex
+    for (let i = charIndex; i < Math.min(charIndex + 50, text.length); i++) {
+      if (text[i] === '.' || text[i] === '!' || text[i] === '?') {
+        breakPoint = i + 1
+        break
+      }
+      if (text[i] === ' ' && i > charIndex) {
+        breakPoint = i
+        break
+      }
+    }
+    
+    const truncated = text.substring(0, breakPoint).trim() + '...'
+    return { truncated, needsTruncation: true }
+  }
+
+  const contentInfo = post.content ? truncateContent(post.content, 50) : { truncated: '', needsTruncation: false }
+  const displayContent = isExpanded || !contentInfo.needsTruncation ? post.content : contentInfo.truncated
 
   const handleOpen = () => {
     readingHistory.markAsRead(post.id)
@@ -152,9 +213,23 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen }: Fee
             <Latex>{post.title || ''}</Latex>
           </h2>
           {post.content && (
-            <p className="bf-feed-card__summary">
-              <Latex>{post.content}</Latex>
-            </p>
+            <div className="bf-feed-card__summary-wrapper">
+              <p className="bf-feed-card__summary">
+                <Latex>{displayContent || ''}</Latex>
+              </p>
+              {contentInfo.needsTruncation && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsExpanded(!isExpanded)
+                  }}
+                  className="bf-feed-card__read-more"
+                >
+                  {isExpanded ? 'Read less' : 'Read more'}
+                </button>
+              )}
+            </div>
           )}
         </div>
 

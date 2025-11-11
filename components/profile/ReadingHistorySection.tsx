@@ -93,12 +93,6 @@ export const ReadingHistorySection = ({ posts, onPostClick }: ReadingHistorySect
             className="bf-history-item"
             onClick={() => onPostClick(item)}
           >
-            <img 
-              src={item.thumbnail_url} 
-              alt={item.title}
-              className="bf-history-item__thumbnail"
-            />
-            
             <div className="bf-history-item__content">
               <div className="bf-history-item__meta">
                 <Badge variant="default">{item.category}</Badge>

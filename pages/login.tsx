@@ -32,8 +32,8 @@ export default function LoginPage() {
             <LoginForm
               loading={loading}
               onForgotPassword={() => setMode('reset')}
-              onSubmit={async ({ email }) => {
-                await login(email)
+              onSubmit={async ({ email, password }) => {
+                await login(email, password)
                 handleSuccess()
               }}
             />

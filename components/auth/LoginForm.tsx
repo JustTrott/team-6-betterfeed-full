@@ -4,19 +4,20 @@ import { Button } from '../ui/button'
 
 interface LoginFormProps {
   loading: boolean
-  onSubmit: (data: { email: string }) => Promise<void>
+  onSubmit: (data: { email: string; password: string }) => Promise<void>
   onForgotPassword: () => void
 }
 
 export const LoginForm = ({ loading, onSubmit, onForgotPassword }: LoginFormProps) => {
-  const [email, setEmail] = useState('testuser@gmail.com')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     try {
       setError(null)
-      await onSubmit({ email })
+      await onSubmit({ email, password })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to sign in')
     }
@@ -34,6 +35,19 @@ export const LoginForm = ({ loading, onSubmit, onForgotPassword }: LoginFormProp
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@example.com"
+          required
+        />
+      </div>
+      <div className="bf-field">
+        <label className="bf-field__label" htmlFor="login-password">
+          Password
+        </label>
+        <Input
+          id="login-password"
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="Enter your password"
           required
         />
       </div>
