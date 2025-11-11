@@ -6,15 +6,17 @@ import { Button } from '../ui/button'
 import { EngagementBar } from './EngagementBar'
 import { ReadBadge } from './ReadBadge'
 import { readingHistory } from '../../lib/readingHistory'
+import Latex from 'react-latex-next'
+import 'katex/dist/katex.min.css'
 
 interface Post {
   id: number | string
   title: string
-  content: string
+  content: string | null
   category: string
   source: string
   article_url: string
-  thumbnail_url: string
+  thumbnail_url: string | null
   created_at: string
   like_count: number
   save_count: number
@@ -146,8 +148,14 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen }: Fee
         </div>
 
         <div className="bf-feed-card__text">
-          <h2 className="bf-feed-card__title">{post.title}</h2>
-          <p className="bf-feed-card__summary">{post.content}</p>
+          <h2 className="bf-feed-card__title">
+            <Latex>{post.title || ''}</Latex>
+          </h2>
+          {post.content && (
+            <p className="bf-feed-card__summary">
+              <Latex>{post.content}</Latex>
+            </p>
+          )}
         </div>
 
         <div className="bf-feed-card__source">
@@ -164,14 +172,6 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen }: Fee
             Read full article
             <ExternalLink className="bf-icon-sm" />
           </a>
-        </div>
-
-        <div className="bf-feed-card__media">
-          <img
-            src={post.thumbnail_url}
-            alt={post.title}
-            loading="lazy"
-          />
         </div>
 
         <Button variant="secondary" className="bf-feed-card__cta" onClick={handleOpen}>

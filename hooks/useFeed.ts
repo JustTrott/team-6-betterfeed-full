@@ -3,10 +3,45 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { db } from '../lib/db'
 import { useAuthStore } from '../store/auth'
 import { useToast } from '../context/toast'
+import type { ArticleResponse } from '../app/api/articles/fetch/route'
 
 interface InteractionState {
   likes: Set<number | string>
   saves: Set<number | string>
+}
+
+interface FeedPost {
+  id: number | string
+  title: string
+  content: string | null
+  article_url: string
+  thumbnail_url: string | null
+  source: string
+  category: string
+  created_at: string
+  like_count: number
+  save_count: number
+  view_count: number
+}
+
+interface FetchArticlesResponse {
+  articles: ArticleResponse[]
+  meta: {
+    count: number
+    page: number
+    per_page: number
+    total_pages: number
+  }
+}
+
+interface PostsPage {
+  items: FeedPost[]
+  nextCursor: number | null
+}
+
+interface PostsQueryData {
+  pages: PostsPage[]
+  pageParams: number[]
 }
 
 const createInteractionState = (): InteractionState => ({ likes: new Set(), saves: new Set() })
@@ -47,15 +82,51 @@ export const useFeed = () => {
     isFetchingNextPage,
   } = useInfiniteQuery({
     queryKey: ['posts', category],
-    queryFn: async ({ pageParam = null }: { pageParam: string | null }) => {
-      const response = await db.getPosts({
-        category,
-        cursor: pageParam,
+    queryFn: async ({ pageParam = 1 }: { pageParam: number }) => {
+      // Fetch articles from arXiv API
+      const response = await fetch('/api/articles/fetch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: category !== 'General' && category !== 'All' ? category : '',
+          perPage: 25,
+          page: pageParam,
+          sortBy: 'submittedDate',
+          sortOrder: 'descending',
+          generateSummaries: true,
+        }),
       })
-      return response
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch articles: ${response.statusText}`)
+      }
+
+      const data: FetchArticlesResponse = await response.json()
+      
+      // Transform API response to match expected format
+      const items: FeedPost[] = data.articles.map((article: ArticleResponse) => ({
+        id: article.id,
+        title: article.title,
+        content: article.content,
+        article_url: article.article_url,
+        thumbnail_url: article.thumbnail_url,
+        source: article.source || 'arXiv',
+        category: article.category || 'General',
+        created_at: article.created_at,
+        like_count: 0,
+        save_count: 0,
+        view_count: 0,
+      }))
+
+      return {
+        items,
+        nextCursor: data.meta.page < data.meta.total_pages ? pageParam + 1 : null,
+      }
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor || undefined,
-    initialPageParam: null as string | null,
+    initialPageParam: 1,
     staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh for 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes cache
   })
@@ -99,13 +170,13 @@ export const useFeed = () => {
     })
 
     // Update posts cache optimistically
-    queryClient.setQueryData(['posts', category], (old: any) => {
+    queryClient.setQueryData<PostsQueryData>(['posts', category], (old) => {
       if (!old) return old
       return {
         ...old,
-        pages: old.pages.map((page: any) => ({
+        pages: old.pages.map((page) => ({
           ...page,
-          items: page.items.map((post: any) => {
+          items: page.items.map((post) => {
             if (post.id !== postId) return post
             const delta = isActive ? -1 : 1
             if (type === 'like') {
@@ -135,13 +206,13 @@ export const useFeed = () => {
       })
 
       // Update posts with server response
-      queryClient.setQueryData(['posts', category], (old: any) => {
+      queryClient.setQueryData<PostsQueryData>(['posts', category], (old) => {
         if (!old) return old
         return {
           ...old,
-          pages: old.pages.map((page: any) => ({
+          pages: old.pages.map((page) => ({
             ...page,
-            items: page.items.map((post: any) =>
+            items: page.items.map((post) =>
               post.id === postId
                 ? { ...post, like_count: result.post.like_count, save_count: result.post.save_count }
                 : post

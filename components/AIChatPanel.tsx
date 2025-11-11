@@ -1,11 +1,19 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { PaperPlaneIcon } from '@radix-ui/react-icons'
-import { Textarea } from './ui/textarea'
+import { MessageSquareIcon, ChevronUp, ChevronDown } from 'lucide-react'
+import { Input } from './ui/input'
 import { Button } from './ui/button'
 import { StyleSelector } from './StyleSelector'
-import { cn } from '../lib/utils'
-import { marked } from 'marked'
+import {
+  Conversation,
+  ConversationContent,
+  ConversationEmptyState,
+  ConversationScrollButton,
+} from './ai-elements/conversation'
+import { Message, MessageContent } from './ai-elements/message'
+import { useChat } from '@ai-sdk/react'
+import { DefaultChatTransport } from 'ai'
 
 interface Post {
   id: number | string
@@ -14,13 +22,6 @@ interface Post {
   category: string
   source: string
   created_at: string
-}
-
-interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  created_at: number
 }
 
 const STYLE_OPTIONS = [
@@ -36,13 +37,6 @@ const STYLE_OPTIONS = [
   },
 ]
 
-const createMessage = (role: 'user' | 'assistant', content: string): Message => ({
-  id: `${role}-${Math.random().toString(16).slice(2)}`,
-  role,
-  content,
-  created_at: Date.now(),
-})
-
 interface AIChatPanelProps {
   open: boolean
   onClose: () => void
@@ -51,21 +45,46 @@ interface AIChatPanelProps {
 }
 
 export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) => {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [value, setValue] = useState('')
-  const [isResponding, setIsResponding] = useState(false)
-  const [selectedStyle, setSelectedStyle] = useState(style ?? STYLE_OPTIONS[0].id)
+  const [selectedStyle, setSelectedStyle] = useState(() => {
+    if (style && STYLE_OPTIONS.some((option) => option.id === style)) {
+      return style
+    }
+    return STYLE_OPTIONS[0].id
+  })
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
-  const messagesEndRef = useRef<HTMLSpanElement>(null)
   const panelTitleId = useId()
 
   const activePostId = post?.id ?? null
 
+  const { messages, sendMessage, status, setMessages } = useChat({
+      transport: new DefaultChatTransport({
+        api: '/api/chat',
+      }),
+    })
+
+  const [input, setInput] = useState('')
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false)
+
+  const toggleHeader = () => {
+    setIsHeaderCollapsed((prev) => !prev)
+  }
+
+  // Auto-collapse header when user sends a message
   useEffect(() => {
-    if (STYLE_OPTIONS.some((option) => option.id === style)) {
-      setSelectedStyle(style!)
+    if (messages.length > 1) {
+      const lastMessage = messages[messages.length - 1]
+      if (lastMessage.role === 'user' && !isHeaderCollapsed) {
+        setIsHeaderCollapsed(true)
+      }
     }
+  }, [messages, isHeaderCollapsed])
+
+  useEffect(() => {
+    if (style && STYLE_OPTIONS.some((option) => option.id === style) && style !== selectedStyle) {
+      setSelectedStyle(style)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [style])
 
   useEffect(() => {
@@ -91,7 +110,6 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
 
   useEffect(() => {
     if (!open) {
-      setValue('')
       if (previousFocusRef.current && previousFocusRef.current instanceof HTMLElement) {
         previousFocusRef.current.focus()
       }
@@ -112,63 +130,43 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
       return
     }
     setMessages([
-      createMessage(
-        'assistant',
-        `Hi! I'm ready to discuss "${post.title}". Ask me anything about the article, request a summary, or explore different perspectives.`
-      ),
+      {
+        id: 'welcome',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'text',
+            text: `Hi! I'm ready to discuss "${post.title}". Ask me anything about the article, request a summary, or explore different perspectives.`,
+          },
+        ],
+      },
     ])
-    setValue('')
-  }, [activePostId])
+  }, [activePostId, setMessages, post])
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, isResponding])
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const onSubmit = (event: React.FormEvent) => {
     event.preventDefault()
-    if (!value.trim() || !post || isResponding) return
-
-    const trimmed = value.trim()
-    const userMessage = createMessage('user', trimmed)
-    setMessages((prev) => [...prev, userMessage])
-    setValue('')
-    setIsResponding(true)
-
-    try {
-      // Call the DeepSeek API route
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: trimmed,
-          post: post,
-          style: selectedStyle,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to get AI response')
-      }
-
-      const data = await response.json()
-      const assistantMessage = createMessage('assistant', data.response)
-      setMessages((prev) => [...prev, assistantMessage])
-    } catch (error) {
-      console.error('Error getting AI response:', error)
-      const errorMessage = createMessage(
-        'assistant',
-        'Sorry, I encountered an error generating a response. Please try again.'
-      )
-      setMessages((prev) => [...prev, errorMessage])
-    } finally {
-      setIsResponding(false)
+    if (!input.trim() || !post || status !== 'ready') return
+    
+    // Ensure post is available before sending
+    if (!post.title || !post.source || !post.category) {
+      console.error('Post information is incomplete')
+      return
     }
+    
+    sendMessage({ text: input }, {
+      body: {
+        post,
+        style: selectedStyle,
+      },
+    })
+    setInput('')
   }
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
-      handleSubmit(event)
+      onSubmit(event)
     }
   }
 
@@ -208,75 +206,127 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
             transition={{ type: 'spring', stiffness: 400, damping: 40 }}
           >
             <header className="bf-chat-slideover__header">
-              <div>
-                <h2 id={panelTitleId} className="bf-chat-slideover__title">
-                  {post.title}
-                </h2>
-                <p className="bf-chat-slideover__meta">
-                  {post.source} · {new Date(post.created_at).toLocaleDateString()} · {post.category}
-                </p>
+              <div className="bf-chat-slideover__header-content">
+                <div className="bf-chat-slideover__header-main">
+                  <div className="bf-chat-slideover__header-text">
+                    <h2
+                      id={panelTitleId}
+                      className={`bf-chat-slideover__title ${isHeaderCollapsed ? 'is-collapsed' : ''}`}
+                      onClick={isHeaderCollapsed ? toggleHeader : undefined}
+                      style={isHeaderCollapsed ? { cursor: 'pointer' } : undefined}
+                    >
+                      {post.title}
+                    </h2>
+                    <motion.div
+                      initial={false}
+                      animate={{
+                        height: isHeaderCollapsed ? 0 : 'auto',
+                        opacity: isHeaderCollapsed ? 0 : 1,
+                      }}
+                      transition={{ duration: 0.3, ease: 'easeInOut' }}
+                      style={{ overflow: 'hidden' }}
+                    >
+                      <p className="bf-chat-slideover__meta">
+                        {post.source} · {new Date(post.created_at).toLocaleDateString()} · {post.category}
+                      </p>
+                    </motion.div>
+                  </div>
+                </div>
+                <div className="bf-chat-slideover__header-actions">
+                  <button type="button" onClick={onClose} className="bf-chat-slideover__close">
+                    Close
+                  </button>
+                </div>
               </div>
-              <button type="button" onClick={onClose} className="bf-chat-slideover__close">
-                Close
-              </button>
             </header>
 
-            <section className="bf-chat-slideover__styles" aria-label="Choose response style">
+            <motion.section
+              className="bf-chat-slideover__styles"
+              aria-label="Choose response style"
+              initial={false}
+              animate={{
+                height: isHeaderCollapsed ? 0 : 'auto',
+                opacity: isHeaderCollapsed ? 0 : 1,
+              }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              style={{ overflow: 'hidden' }}
+            >
               <StyleSelector options={STYLE_OPTIONS} selected={selectedStyle} onSelect={handleStyleSelect} />
-              <p className="bf-chat-slideover__style-hint">
-                Currently speaking with a <strong>{selectedStyleMeta.label}</strong> tone.
-              </p>
-            </section>
+            </motion.section>
+            {!isHeaderCollapsed && (
+              <div className="bf-chat-slideover__footer">
+                <button
+                  type="button"
+                  onClick={toggleHeader}
+                  className="bf-chat-slideover__collapse-button"
+                  aria-expanded={!isHeaderCollapsed}
+                  aria-label="Collapse header"
+                >
+                  <ChevronUp className="bf-icon-sm" />
+                </button>
+              </div>
+            )}
+            <p className="bf-chat-slideover__style-hint">
+              Currently speaking with a <strong>{selectedStyleMeta.label}</strong> tone.
+            </p>
 
             <section className="bf-chat-slideover__body">
-              <div className="bf-chat-slideover__messages" role="log" aria-live="polite">
-                {messages.map((message) => (
-                  <motion.div
-                    key={message.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={cn(
-                      'bf-chat-slideover__message',
-                      message.role === 'assistant'
-                        ? 'bf-chat-slideover__message--assistant'
-                        : 'bf-chat-slideover__message--user'
-                    )}
-                    dangerouslySetInnerHTML={
-                      message.role === 'assistant'
-                        ? { __html: marked(message.content) as string }
-                        : undefined
-                    }
-                  >
-                    {message.role === 'user' ? message.content : null}
-                  </motion.div>
-                ))}
-                {isResponding ? (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="bf-chat-slideover__status"
-                  >
-                    {selectedStyleMeta.label} drafting…
-                  </motion.div>
-                ) : null}
-                <span ref={messagesEndRef} />
-              </div>
+              <Conversation className="bf-chat-slideover__messages">
+                <ConversationContent>
+                  {messages.length === 0 ? (
+                    <ConversationEmptyState
+                      title="Start a conversation"
+                      description="Ask me anything about the article, request a summary, or explore different perspectives."
+                      icon={<MessageSquareIcon className="size-6" />}
+                    />
+                  ) : (
+                    <>
+                      {messages.map((message) => {
+                        const textContent = message.parts
+                          .filter((part) => part.type === 'text')
+                          .map((part) => (part as { text: string }).text)
+                          .join('')
 
-              <form className="bf-chat-slideover__composer" onSubmit={handleSubmit}>
-                <Textarea
+                        return (
+                          <Message key={message.id} from={message.role === 'assistant' ? 'assistant' : 'user'}>
+                            <MessageContent
+                              content={textContent}
+                              markdown={message.role === 'assistant'}
+                            />
+                          </Message>
+                        )
+                      })}
+                      {(status === 'submitted' || status === 'streaming') ? (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="bf-chat-slideover__status"
+                        >
+                          {selectedStyleMeta.label} drafting…
+                        </motion.div>
+                      ) : null}
+                    </>
+                  )}
+                </ConversationContent>
+                <ConversationScrollButton />
+              </Conversation>
+
+              <form className="bf-chat-slideover__composer" onSubmit={onSubmit}>
+                <Input
                   ref={inputRef}
-                  value={value}
-                  onChange={(event) => setValue(event.target.value)}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Ask for a takeaway, compare viewpoints, or stress-test the point…"
-                  className="bf-chat-slideover__textarea"
+                  className="bf-chat-slideover__input"
                   aria-label="Message the AI assistant"
+                  disabled={status !== 'ready'}
                 />
                 <Button
                   type="submit"
                   variant="default"
                   className="bf-chat-slideover__submit"
-                  disabled={!value.trim() || isResponding}
+                  disabled={!input.trim() || status !== 'ready'}
                 >
                   <PaperPlaneIcon className="bf-icon-md" />
                   <span className="bf-show-desktop">Send</span>
