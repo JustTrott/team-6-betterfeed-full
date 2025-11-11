@@ -82,6 +82,7 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 │   │   ├── input.tsx         # Input component
 │   │   ├── scroll-area.tsx   # Scroll area component
 │   │   ├── SearchBar.tsx     # Search bar component
+│   │   ├── select.tsx        # Select component
 │   │   └── textarea.tsx      # Textarea component
 │   ├── ai-elements/          # AI SDK Elements components
 │   │   ├── conversation.tsx  # Conversation component with auto-scroll
@@ -280,6 +281,7 @@ The application includes an AI-powered chat assistant that provides contextual a
   - Note: Uses arXiv API (free, no auth required) and DeepSeek for summarization
   - Default: Fetches recent articles sorted by submission date, generates summaries using DeepSeek
   - Categories: Supports arXiv categories (e.g., `cs.AI`, `math.CO`, `physics.optics`)
+  - **Database Caching**: Checks database first by `article_url` before generating summaries. Only generates summaries for articles that don't exist or don't have content. Stores generated articles in database with system user (`system@betterfeed.local`) for reuse.
 
 - `GET /api/articles/fetch` - Same as POST but uses query parameters
   - Query params: `query`, `category`, `per_page`, `page`, `sort_by`, `sort_order`, `generate_summaries`
@@ -451,7 +453,7 @@ Next.js Pages Router with file-based routing:
 - Optimistic updates for interactions
 - Local storage for reading history and mock database
 - Real-time AI responses via fetch API
-- **arXiv API Integration**: Fetches scientific preprints on-demand from arXiv API
+  - **arXiv API Integration**: Fetches scientific preprints on-demand from arXiv API
   - Service: `lib/services/arxiv.ts` - arXiv API client for fetching preprints
   - Endpoint: `app/api/articles/fetch/route.ts` - Fetches articles and generates AI summaries
   - Hook: `hooks/useFeed.ts` - Updated to fetch from arXiv API instead of mocks
@@ -459,6 +461,7 @@ Next.js Pages Router with file-based routing:
   - Coverage: Physics, mathematics, computer science, quantitative biology, and related fields
   - Full-text URLs: PDF URLs extracted from arXiv entries
   - AI Summaries: Generated using DeepSeek from abstracts
+  - **Database Caching**: Articles are cached in database by `article_url`. Summaries are only generated when articles don't exist or don't have content. System user (`system@betterfeed.local`) is used to store arXiv articles for reuse across all users.
 
 ## Migration Notes
 

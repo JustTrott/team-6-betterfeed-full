@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchArticles, getPdfUrl, getAbstractUrl, formatAuthors, getPrimaryCategory, type ArxivEntry } from '@/lib/services/arxiv'
 import { generateArticleSummary } from '@/lib/services/summarize'
+import { supabaseAdmin } from '@/lib/db/client'
+import { Post } from '@/lib/db/schema'
 
 export interface FetchArticlesRequest {
   query?: string
@@ -28,9 +30,81 @@ export interface ArticleResponse {
 }
 
 /**
+ * Get or create a system user for storing arXiv articles
+ */
+async function getSystemUserId(): Promise<string> {
+  if (!supabaseAdmin) {
+    throw new Error('Supabase admin client not available')
+  }
+
+  // Try to find an existing system user (email: system@betterfeed.local)
+  const { data: existingUser, error: fetchError } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('email', 'system@betterfeed.local')
+    .maybeSingle()
+
+  if (existingUser) {
+    return existingUser.id
+  }
+
+  // If fetch error (not just "not found"), log it but continue to try creating
+  if (fetchError && fetchError.code !== 'PGRST116') {
+    console.warn('Error fetching system user:', fetchError)
+  }
+
+  // Create system user if it doesn't exist
+  // Try with fixed username first, if that fails due to conflict, use timestamp
+  let username = 'system'
+  let { data: newUser, error: insertError } = await supabaseAdmin
+    .from('profiles')
+    .insert({
+      email: 'system@betterfeed.local',
+      username: username,
+    })
+    .select('id')
+    .single()
+
+  // If username conflict, try with timestamp
+  if (insertError?.code === '23505' && insertError.message.includes('username')) {
+    username = `system_${Date.now()}`
+    const retryResult = await supabaseAdmin
+      .from('profiles')
+      .insert({
+        email: 'system@betterfeed.local',
+        username: username,
+      })
+      .select('id')
+      .single()
+    
+    newUser = retryResult.data
+    insertError = retryResult.error
+  }
+
+  if (insertError || !newUser) {
+    // If insert fails due to unique constraint, try fetching again
+    if (insertError?.code === '23505') {
+      const { data: retryUser } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .eq('email', 'system@betterfeed.local')
+        .maybeSingle()
+      
+      if (retryUser) {
+        return retryUser.id
+      }
+    }
+    throw new Error(`Failed to create system user: ${insertError?.message || 'Unknown error'}`)
+  }
+
+  return newUser.id
+}
+
+/**
  * POST /api/articles/fetch
  * 
- * Fetch scientific articles from arXiv API and optionally generate summaries
+ * Fetch scientific articles from arXiv API and optionally generate summaries.
+ * Checks database first and only generates summaries for articles that don't exist.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -45,7 +119,7 @@ export async function POST(req: NextRequest) {
       generateSummaries = true,
     } = body
 
-    // Search for articles
+    // Search for articles from arXiv
     const searchResponse = await searchArticles({
       query: query || undefined,
       category,
@@ -54,6 +128,9 @@ export async function POST(req: NextRequest) {
       sortBy,
       sortOrder,
     })
+
+    // Get system user ID for storing articles
+    const systemUserId = await getSystemUserId()
 
     // Process each entry
     const articles: ArticleResponse[] = await Promise.all(
@@ -66,11 +143,41 @@ export async function POST(req: NextRequest) {
         // Get basic metadata
         const title = entry.title || 'Untitled'
         const authors = formatAuthors(entry)
-        const category = getPrimaryCategory(entry)
+        const articleCategory = getPrimaryCategory(entry)
         const publicationDate = entry.published || entry.updated || new Date().toISOString()
         const abstract = entry.summary || null
 
-        // Generate summary if requested
+        // Check if article already exists in database
+        let existingPost: Post | null = null
+        if (supabaseAdmin) {
+          const { data: posts } = await supabaseAdmin
+            .from('posts')
+            .select('*')
+            .eq('article_url', articleUrl)
+            .limit(1)
+          
+          existingPost = posts && posts.length > 0 ? (posts[0] as Post) : null
+        }
+
+        // If article exists and has content, use it
+        if (existingPost && existingPost.content) {
+          return {
+            id: String(existingPost.id),
+            title: existingPost.title,
+            article_url: existingPost.article_url,
+            content: existingPost.content,
+            thumbnail_url: existingPost.thumbnail_url,
+            source: authors,
+            category: articleCategory,
+            created_at: existingPost.created_at,
+            abstract: abstract || undefined,
+            authors: authors || undefined,
+            publication_date: publicationDate || undefined,
+            doi: entry.doi || undefined,
+          }
+        }
+
+        // Generate summary if requested and article doesn't exist or has no content
         let summary: string | null = null
         if (generateSummaries && abstract) {
           try {
@@ -91,6 +198,33 @@ export async function POST(req: NextRequest) {
         // Generate thumbnail URL (placeholder - arXiv doesn't provide thumbnails)
         const thumbnailUrl = null
 
+        // Store or update article in database
+        if (supabaseAdmin) {
+          if (existingPost) {
+            // Update existing post with generated content
+            await supabaseAdmin
+              .from('posts')
+              .update({
+                title,
+                content: summary,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', existingPost.id)
+          } else {
+            // Create new post
+            await supabaseAdmin
+              .from('posts')
+              .insert({
+                user_id: systemUserId,
+                article_url: articleUrl,
+                title,
+                content: summary,
+                thumbnail_url: thumbnailUrl,
+                view_count: 0,
+              })
+          }
+        }
+
         return {
           id: entry.id,
           title,
@@ -98,7 +232,7 @@ export async function POST(req: NextRequest) {
           content: summary,
           thumbnail_url: thumbnailUrl,
           source: authors,
-          category,
+          category: articleCategory,
           created_at: publicationDate,
           abstract: abstract || undefined,
           authors: authors || undefined,
