@@ -9,7 +9,7 @@ import type { Interaction } from '../lib/db/schema'
 export default function SavedPage() {
   const { user, accessToken } = useAuthStore()
   const { pushToast } = useToast()
-  const [posts, setPosts] = useState<Post[]>([])
+  const [posts, setPosts] = useState<(Post & { category: string; source: string; like_count: number; save_count: number })[]>([])
   const [activePost, setActivePost] = useState<Post | null>(null)
   const [panelOpen, setPanelOpen] = useState(false)
 
@@ -22,7 +22,7 @@ export default function SavedPage() {
       if (!postsResponse.ok) throw new Error('Failed to fetch posts')
       const allPosts: Post[] = await postsResponse.json()
       
-      // Fetch all interactions to find saved posts
+      // Fetch all interactions to find saved posts and get counts
       const savedPostIds = new Set<number>()
       const interactionPromises = allPosts.map(async (post) => {
         const interactionsResponse = await fetch(`/api/interactions/${post.id}`)
@@ -34,13 +34,32 @@ export default function SavedPage() {
           if (userSave) {
             savedPostIds.add(post.id)
           }
+          return { postId: post.id, interactions }
         }
+        return { postId: post.id, interactions: [] as Interaction[] }
       })
       
-      await Promise.all(interactionPromises)
+      const interactionResults = await Promise.all(interactionPromises)
+      const interactionMap = new Map(
+        interactionResults.map((result) => [
+          result.postId,
+          result.interactions,
+        ])
+      )
       
-      // Filter to only saved posts
-      const savedPosts = allPosts.filter((post) => savedPostIds.has(post.id))
+      // Filter to only saved posts and add required fields for FeedCard
+      const savedPosts = allPosts
+        .filter((post) => savedPostIds.has(post.id))
+        .map((post) => {
+          const interactions = interactionMap.get(post.id) || []
+          return {
+            ...post,
+            category: 'General', // Post schema doesn't have category, but FeedCard expects it
+            source: 'arXiv', // Post schema doesn't have source, but FeedCard expects it
+            like_count: interactions.filter((i) => i.interaction_type === 'like').length,
+            save_count: interactions.filter((i) => i.interaction_type === 'save').length,
+          }
+        })
       setPosts(savedPosts)
     } catch (error) {
       console.error('Error fetching saved posts:', error)
@@ -127,7 +146,17 @@ export default function SavedPage() {
         )}
       </div>
 
-      <AIChatPanel open={panelOpen} onClose={() => setPanelOpen(false)} post={activePost} style="professor" />
+      <AIChatPanel 
+        open={panelOpen} 
+        onClose={() => setPanelOpen(false)} 
+        post={activePost ? {
+          ...activePost,
+          content: activePost.content || '', // Post schema has nullable content, but AIChatPanel expects string
+          category: 'General', // Post schema doesn't have category, but AIChatPanel expects it
+          source: 'arXiv', // Post schema doesn't have source, but AIChatPanel expects it
+        } : null} 
+        style="professor" 
+      />
     </div>
   )
 }

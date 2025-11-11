@@ -3,14 +3,7 @@ import { Camera } from 'lucide-react'
 import { AvatarFallback, AvatarImage, AvatarRoot } from '../ui/avatar'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
-
-interface Profile {
-  id: string
-  email: string
-  username: string
-  avatar_url?: string
-  created_at?: string
-}
+import { Profile } from '../../lib/db/schema'
 
 interface ProfileCardProps {
   profile: Profile
@@ -34,7 +27,7 @@ export const ProfileCard = ({ profile, onUpdate }: ProfileCardProps) => {
       <div className="bf-profile-card__header">
         <div className="bf-profile-card__avatar-wrapper">
           <AvatarRoot className="bf-avatar-lg">
-            <AvatarImage src={avatarUrl} alt={profile.username} />
+            <AvatarImage src={avatarUrl || undefined} alt={profile.username} />
             <AvatarFallback>{profile.username.slice(0, 2).toUpperCase()}</AvatarFallback>
           </AvatarRoot>
           <span className="bf-profile-card__camera">

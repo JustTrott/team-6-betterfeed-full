@@ -128,7 +128,15 @@ export default function ProfilePage() {
       </section>
 
       {/* Add Reading History Section */}
-      <ReadingHistorySection posts={posts} onPostClick={handlePostClick} />
+      <ReadingHistorySection 
+        posts={posts.map(post => ({
+          ...post,
+          category: 'General', // Post schema doesn't have category, but ReadingHistorySection expects it
+          source: 'arXiv', // Post schema doesn't have source, but ReadingHistorySection expects it
+          thumbnail_url: post.thumbnail_url || '', // Post schema has nullable thumbnail_url, but ReadingHistorySection expects string
+        }))} 
+        onPostClick={handlePostClick} 
+      />
 
       <section className="bf-panel bf-panel--light">
         <div className="bf-panel__header">

@@ -58,7 +58,7 @@ function parseArxivXML(xmlText: string): ArxivFeed {
   const itemsPerPage = itemsPerPageMatch ? parseInt(itemsPerPageMatch[1], 10) : 0
 
   // Extract all entries
-  const entryMatches = xmlText.matchAll(/<entry>(.*?)<\/entry>/gs)
+  const entryMatches = xmlText.matchAll(/<entry>([\s\S]*?)<\/entry>/g)
   const entries: ArxivEntry[] = []
 
   for (const entryMatch of entryMatches) {
@@ -80,7 +80,7 @@ function parseArxivXML(xmlText: string): ArxivFeed {
     const doi = doiMatch ? doiMatch[1].trim() : undefined
 
     // Extract authors
-    const authorMatches = entryXml.matchAll(/<author>.*?<name>(.*?)<\/name>.*?<\/author>/gs)
+    const authorMatches = entryXml.matchAll(/<author>[\s\S]*?<name>(.*?)<\/name>[\s\S]*?<\/author>/g)
     const authors = Array.from(authorMatches).map((match) => ({
       name: match[1].trim(),
     }))

@@ -144,7 +144,17 @@ export default function PostPage() {
         />
       </motion.div>
 
-      <AIChatPanel open={panelOpen} onClose={() => setPanelOpen(false)} post={post} style="professor" />
+      <AIChatPanel 
+        open={panelOpen} 
+        onClose={() => setPanelOpen(false)} 
+        post={{
+          ...post,
+          content: post.content || '', // Post schema has nullable content, but AIChatPanel expects string
+          category: 'General', // Post schema doesn't have category, but AIChatPanel expects it
+          source: 'arXiv', // Post schema doesn't have source, but AIChatPanel expects it
+        }} 
+        style="professor" 
+      />
     </div>
   )
 }

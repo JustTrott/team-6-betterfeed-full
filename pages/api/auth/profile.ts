@@ -36,11 +36,11 @@ async function updateProfile(
 
     // Only allow updating username and avatar_url
     const allowedFields: (keyof Profile)[] = ['username', 'avatar_url'];
-    const updateValues: Partial<Profile> = {};
+    const updateValues: Record<string, string | null | undefined> = {};
 
     for (const field of allowedFields) {
       if (updateData[field] !== undefined) {
-        updateValues[field] = updateData[field];
+        updateValues[field] = updateData[field] ?? null;
       }
     }
 

@@ -29,7 +29,7 @@ function AuthHydrator({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function AppShell({ Component, pageProps }: AppProps) {
+function AppShell({ Component, pageProps }: { Component: AppProps['Component']; pageProps: AppProps['pageProps'] }) {
   const router = useRouter()
   const { user, logout, initialized } = useAuthStore()
   

@@ -5,13 +5,7 @@ import { Button } from './ui/button'
 import { AvatarFallback, AvatarImage, AvatarRoot } from './ui/avatar'
 import { SearchBar } from './ui/SearchBar'
 import { cn } from '../lib/utils'
-
-interface Profile {
-  id: string
-  email: string
-  username: string
-  avatar_url?: string
-}
+import { Profile } from '../lib/db/schema'
 
 interface AppHeaderProps {
   user: Profile | null
@@ -72,7 +66,7 @@ export const AppHeader = ({ user, onSignIn, onSignOut, onSearch }: AppHeaderProp
             <>
               <Link href="/profile" className="bf-header__profile-link">
                 <AvatarRoot className="bf-avatar-md">
-                  <AvatarImage src={user.avatar_url} alt={user.username} />
+                  <AvatarImage src={user.avatar_url || undefined} alt={user.username} />
                   <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
                 </AvatarRoot>
               </Link>

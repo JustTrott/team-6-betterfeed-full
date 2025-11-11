@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { PaperPlaneIcon } from '@radix-ui/react-icons'
-import { MessageSquareIcon, ChevronUp, ChevronDown } from 'lucide-react'
+import { MessageSquareIcon, ChevronUp } from 'lucide-react'
 import { Input } from './ui/input'
 import { Button } from './ui/button'
 import { StyleSelector } from './StyleSelector'
@@ -51,7 +51,7 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     }
     return STYLE_OPTIONS[0].id
   })
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
   const panelTitleId = useId()
 
