@@ -9,7 +9,7 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 - Next.js App Router route handlers for AI SDK compatibility (in `app/api/`)
 - Supabase client for database operations and authentication
 - arXiv API integration for fetching scientific preprints in physics, mathematics, computer science, and related fields
-- DeepSeek AI integration for intelligent article analysis and summarization
+- Google Gemini AI integration for intelligent article analysis and summarization
 - TypeScript for type safety
 
 ## Tech Stack
@@ -30,7 +30,7 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 ### AI Integration
 - **ai** - Vercel AI SDK core package for streaming text generation
 - **@ai-sdk/react** - React hooks for AI chat UI (useChat hook)
-- **@ai-sdk/deepseek** - DeepSeek provider for AI SDK (used for DeepSeek API compatibility)
+- **@ai-sdk/google** - Google Gemini provider for AI SDK (used for Gemini API compatibility)
 - **marked 17.0.0** - Markdown parser for AI responses
 
 ### UI Components
@@ -100,7 +100,7 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 │   ├── profile/              # Profile components
 │   │   ├── ProfileCard.tsx   # Profile card
 │   │   └── ReadingHistorySection.tsx  # Reading history
-│   ├── AIChatPanel.tsx       # AI chat panel with DeepSeek integration
+│   ├── AIChatPanel.tsx       # AI chat panel with Gemini integration
 │   ├── AppHeader.tsx         # Application header
 │   ├── CategoryTabs.tsx      # Category filter tabs
 │   ├── RouteGuard.tsx        # Protected route wrapper
@@ -125,11 +125,11 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 │   │   └── errors.ts         # Error handling utilities
 │   └── services/             # External service integrations
 │       ├── arxiv.ts           # arXiv API service for fetching scientific preprints
-│       └── summarize.ts       # AI summary generation service using DeepSeek
+│       └── summarize.ts       # AI summary generation service using Google Gemini
 ├── app/                       # Next.js App Router (for AI SDK compatibility)
 │   └── api/                   # App Router API routes
 │       ├── chat/              # AI chat endpoint
-│       │   └── route.ts       # POST /api/chat - DeepSeek chat completions (App Router route handler)
+│       │   └── route.ts       # POST /api/chat - Google Gemini chat completions (App Router route handler)
 │       └── articles/         # Article fetching endpoints
 │           └── fetch/          # Article fetching endpoint
 │               └── route.ts   # POST /api/articles/fetch - Fetch articles from OpenAlex with AI summaries
@@ -173,12 +173,12 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 ## AI Features
 
 ### Chat Assistant
-The application includes an AI-powered chat assistant that provides contextual analysis of articles using DeepSeek with real-time streaming responses.
+The application includes an AI-powered chat assistant that provides contextual analysis of articles using Google Gemini with real-time streaming responses.
 
 **Implementation:**
 - **Frontend**: `components/AIChatPanel.tsx` - Chat UI with style selection and markdown rendering using `useChat` hook from `@ai-sdk/react`
 - **AI Elements**: Uses AI SDK Elements components (`components/ai-elements/conversation.tsx` and `components/ai-elements/message.tsx`) for conversation UI with automatic scrolling and scroll button
-- **Backend**: `app/api/chat/route.ts` - DeepSeek API integration using AI SDK's `streamText` for streaming responses (App Router route handler required for AI SDK)
+- **Backend**: `app/api/chat/route.ts` - Google Gemini API integration using AI SDK's `streamText` for streaming responses (App Router route handler required for AI SDK)
 - **Streaming**: Uses Vercel AI SDK for real-time message streaming
 - **Markdown Rendering**: Uses `marked` library to parse and display formatted AI responses
 - **Transport**: Uses `DefaultChatTransport` from AI SDK for message handling
@@ -282,14 +282,14 @@ The application includes an AI-powered chat assistant that provides contextual a
 - `POST /api/chat` - Generate AI response for article discussion
   - Body: `{ messages: UIMessage[], post: Post, style: 'professor' | 'debater' }`
   - Returns: Server-Sent Events (SSE) stream with UI message format
-  - Note: Uses DeepSeek API with server-side API key (App Router route handler)
+  - Note: Uses Google Gemini API with server-side API key (App Router route handler)
 
 ### Articles
 - `POST /api/articles/fetch` - Fetch scientific preprints from arXiv API with AI-generated summaries
   - Body: `{ query?: string, category?: string, perPage?: number, page?: number, sortBy?: 'relevance' | 'lastUpdatedDate' | 'submittedDate', sortOrder?: 'ascending' | 'descending', generateSummaries?: boolean }`
   - Returns: `{ articles: ArticleResponse[], meta: { count, page, per_page, total_pages } }`
-  - Note: Uses arXiv API (free, no auth required) and DeepSeek for summarization
-  - Default: Fetches recent articles sorted by submission date, generates summaries using DeepSeek
+  - Note: Uses arXiv API (free, no auth required) and Google Gemini for summarization
+  - Default: Fetches recent articles sorted by submission date, generates summaries using Google Gemini
   - Categories: Supports arXiv categories (e.g., `cs.AI`, `math.CO`, `physics.optics`)
   - **Database Caching**: Checks database first by `article_url` before generating summaries. Only generates summaries for articles that don't exist or don't have content. Stores generated articles in database with system user (`system@betterfeed.local`) for reuse.
 
@@ -341,7 +341,7 @@ Required environment variables (create `.env.local`):
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_KEY=your_supabase_service_key
-DEEPSEEK_API_KEY=your_deepseek_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
 
 # Client-side (used in browser/client components)
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
@@ -351,7 +351,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 - **SUPABASE_URL**: Supabase project URL (server-side)
 - **SUPABASE_ANON_KEY**: Supabase anonymous/public key (server-side)
 - **SUPABASE_SERVICE_KEY**: Supabase service role key (for admin operations, server-side only)
-- **DEEPSEEK_API_KEY**: DeepSeek API key for AI chat and article summarization (server-side only)
+- **GEMINI_API_KEY**: Google Gemini API key for AI chat and article summarization (server-side only)
 - **NEXT_PUBLIC_SUPABASE_URL**: Supabase project URL (client-side, must be prefixed with NEXT_PUBLIC_)
 - **NEXT_PUBLIC_SUPABASE_ANON_KEY**: Supabase anonymous/public key (client-side, must be prefixed with NEXT_PUBLIC_)
 
@@ -428,7 +428,7 @@ try {
 ```
 
 ### AI Integration
-Call DeepSeek API for article analysis:
+Call Google Gemini API for article analysis:
 ```typescript
 // In frontend components
 const response = await fetch('/api/ai/chat', {
@@ -480,7 +480,7 @@ Next.js Pages Router with file-based routing:
   - Rate limits: No official limits, but be respectful (recommended: 1 request per 3 seconds)
   - Coverage: Physics, mathematics, computer science, quantitative biology, and related fields
   - Full-text URLs: PDF URLs extracted from arXiv entries
-  - AI Summaries: Generated using DeepSeek from abstracts
+  - AI Summaries: Generated using Google Gemini from abstracts
   - **Database Caching**: Articles are cached in database by `article_url`. Summaries are only generated when articles don't exist or don't have content. System user (`system@betterfeed.local`) is used to store arXiv articles for reuse across all users.
 
 ## Migration Notes
@@ -504,7 +504,7 @@ Key migration points:
 - All database operations use Supabase client directly
 - Supabase RLS policies are enforced at the database level
 - Authentication uses Supabase Auth JWT tokens (Supabase handles all JWT verification)
-- AI chat uses DeepSeek API with server-side API key (no client-side exposure)
+- AI chat uses Google Gemini API with server-side API key (no client-side exposure)
 - **arXiv API Integration**: Free API for scientific preprints, no authentication required
   - Fetches preprints on-demand with AI-generated summaries
   - PDF URLs extracted from arXiv entries
@@ -512,4 +512,4 @@ Key migration points:
 - API responses maintain compatibility with original FastAPI structure
 - Database schema is managed in Supabase (SQL), TypeScript types are in `lib/db/schema.ts`
 - AI responses are markdown-formatted and parsed client-side using `marked` library
-- Article summaries are generated using DeepSeek from abstracts or full text content
+- Article summaries are generated using Google Gemini from abstracts or full text content

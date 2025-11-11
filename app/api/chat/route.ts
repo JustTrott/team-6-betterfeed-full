@@ -1,8 +1,8 @@
-import { createDeepSeek } from '@ai-sdk/deepseek'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { streamText, convertToModelMessages, UIMessage } from 'ai'
 
-const deepseek = createDeepSeek({
-  apiKey: process.env.DEEPSEEK_API_KEY,
+const google = createGoogleGenerativeAI({
+  apiKey: process.env.GEMINI_API_KEY,
 })
 
 export async function GET(req: Request) {
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   const systemMessage = `${systemPrompt}\n\nContext: The user is discussing an article titled "${post.title}" from ${post.source} in the ${post.category} category. Article summary: ${post.content || 'No summary available'}`
 
   const result = streamText({
-    model: deepseek('deepseek-chat'),
+    model: google('gemini-flash-lite-latest'),
     system: systemMessage,
     messages: convertToModelMessages(messages),
   });

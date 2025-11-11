@@ -5,7 +5,7 @@ BetterFeed is an AI-powered smart feed application for scrolling through condens
 ## Features
 
 - 📱 **TikTok-style Feed**: Vertical scrolling interface for quick article discovery
-- 🤖 **AI Chat Assistant**: Discuss articles with an AI powered by DeepSeek
+- 🤖 **AI Chat Assistant**: Discuss articles with an AI powered by Google Gemini
   - **Professor Mode**: Structured, educational explanations
   - **Debater Mode**: Balanced pros/cons analysis
 - 👤 **User Authentication**: Secure signup/login via Supabase
@@ -20,7 +20,7 @@ BetterFeed is an AI-powered smart feed application for scrolling through condens
 - **Styling**: Tailwind CSS 4, Custom CSS with BetterFeed design system
 - **Database**: Supabase (PostgreSQL)
 - **Authentication**: Supabase Auth
-- **AI Integration**: DeepSeek API via OpenAI SDK
+- **AI Integration**: Google Gemini API via AI SDK
 - **State Management**: Zustand, TanStack Query
 - **UI Components**: Radix UI, Lucide Icons, Motion (animations)
 
@@ -30,7 +30,7 @@ BetterFeed is an AI-powered smart feed application for scrolling through condens
 
 - Node.js 18+ and npm
 - Supabase account ([sign up here](https://supabase.com))
-- DeepSeek API key ([get one here](https://platform.deepseek.com))
+- Google Gemini API key ([get one here](https://ai.google.dev))
 
 ### Installation
 
@@ -52,12 +52,12 @@ BetterFeed is an AI-powered smart feed application for scrolling through condens
    SUPABASE_URL=your_supabase_project_url
    SUPABASE_ANON_KEY=your_supabase_anon_key
    SUPABASE_SERVICE_KEY=your_supabase_service_key
-   DEEPSEEK_API_KEY=your_deepseek_api_key
+   GEMINI_API_KEY=your_gemini_api_key
 ```
 
    **Where to find these:**
    - **Supabase keys**: Project Settings → API in your Supabase dashboard
-   - **DeepSeek API key**: [DeepSeek Platform](https://platform.deepseek.com)
+   - **Google Gemini API key**: [Google AI Studio](https://ai.google.dev)
 
 4. **Set up the database**
    
@@ -84,7 +84,7 @@ BetterFeed is an AI-powered smart feed application for scrolling through condens
 ├── pages/              # Next.js pages and API routes
 │   ├── api/            # Backend API endpoints
 │   │   ├── auth/       # Authentication
-│   │   ├── ai/         # AI chat (DeepSeek)
+│   │   ├── ai/         # AI chat (Google Gemini)
 │   │   ├── posts/      # Post management
 │   │   └── interactions/ # Likes/saves
 │   ├── index.tsx       # Home (feed) page
@@ -102,7 +102,7 @@ BetterFeed is an AI-powered smart feed application for scrolling through condens
 
 ## AI Chat Assistant
 
-The AI chat assistant uses DeepSeek to provide intelligent article analysis:
+The AI chat assistant uses Google Gemini to provide intelligent article analysis:
 
 - **Professor Mode**: Get structured, educational explanations with clear breakdowns
 - **Debater Mode**: Explore pros and cons with balanced perspectives
@@ -145,7 +145,7 @@ The assistant maintains conversation context per article and formats responses u
 | `SUPABASE_URL` | Your Supabase project URL | Yes |
 | `SUPABASE_ANON_KEY` | Supabase anonymous/public key | Yes |
 | `SUPABASE_SERVICE_KEY` | Supabase service role key | Yes |
-| `DEEPSEEK_API_KEY` | DeepSeek API key for AI features | Yes |
+| `GEMINI_API_KEY` | Google Gemini API key for AI features | Yes |
 
 ## Database Schema
 
@@ -173,5 +173,5 @@ See `lib/db/schema.ts` for TypeScript type definitions or `sql/schema.sql` for t
 
 - [Next.js Documentation](https://nextjs.org/docs)
 - [Supabase Documentation](https://supabase.com/docs)
-- [DeepSeek API Documentation](https://platform.deepseek.com/docs)
+- [Google Gemini API Documentation](https://ai.google.dev/docs)
 - [Tailwind CSS Documentation](https://tailwindcss.com/docs)

@@ -1,15 +1,15 @@
 /**
  * AI Summary Generation Service
  * 
- * Uses DeepSeek AI to generate concise summaries of scientific articles
+ * Uses Google Gemini AI to generate concise summaries of scientific articles
  * from abstracts or full text content.
  */
 
-import { createDeepSeek } from '@ai-sdk/deepseek'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { generateText } from 'ai'
 
-const deepseek = createDeepSeek({
-  apiKey: process.env.DEEPSEEK_API_KEY,
+const google = createGoogleGenerativeAI({
+  apiKey: process.env.GEMINI_API_KEY,
 })
 
 /**
@@ -45,7 +45,7 @@ Return only the summary text, without any introductory phrases or meta-commentar
 
   try {
     const result = await generateText({
-      model: deepseek('deepseek-chat'),
+      model: google('gemini-flash-lite-latest'),
       system: systemPrompt,
       prompt: `Article Title: ${title}\n\nContent to summarize:\n${contentToSummarize}\n\nGenerate a concise summary:`,
       maxOutputTokens: 500,
