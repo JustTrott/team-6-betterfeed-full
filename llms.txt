@@ -50,7 +50,7 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 ### Utilities
 - **class-variance-authority 0.7.0** - Component variant utilities
 - **clsx 2.1.1** - Conditional className utility
-- **react-latex-next 3.0.0** - LaTeX rendering for React components
+- **react-latex-next 3.0.0** - LaTeX rendering for React components (uses legacy-peer-deps for React 19 compatibility)
 - **katex 0.16.25** - Fast math typesetting library (dependency of react-latex-next)
 
 ### Styling
@@ -67,6 +67,7 @@ This is a **single-repository** Next.js application (not a monorepo) that provid
 /
 ├── .cursorrules              # Cursor AI rules
 ├── .gitignore                # Git ignore patterns
+├── .npmrc                    # NPM configuration (legacy-peer-deps for React 19 compatibility)
 ├── .env.local                # Environment variables (not in git)
 ├── llms.txt                  # This file - project metadata for LLMs
 ├── next.config.ts            # Next.js configuration
@@ -359,6 +360,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 - arXiv API is free and requires no authentication. All articles are open access preprints.
 - Client-side environment variables must be prefixed with `NEXT_PUBLIC_` to be accessible in the browser.
 - Server-side variables (without `NEXT_PUBLIC_` prefix) are only available in API routes and server components.
+
+## NPM Configuration
+
+- **`.npmrc`** - NPM configuration file with `legacy-peer-deps=true` to resolve peer dependency conflicts
+  - Required because `react-latex-next@3.0.0` doesn't officially support React 19 yet, but works correctly with it
+  - This allows Vercel builds to succeed without downgrading React
 
 ## NPM Scripts
 
