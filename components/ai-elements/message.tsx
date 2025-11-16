@@ -38,15 +38,14 @@ export const MessageContent = ({
   ...props
 }: MessageContentProps) => {
   if (markdown && content) {
-    // Process markdown - Latex component handles LaTeX in the content automatically
+    // Process markdown first, then wrap with Latex component
+    // The Latex component will handle both the HTML and any LaTeX expressions
     const html = marked(content) as string;
     
     return (
-      <div
-        className={className}
-        dangerouslySetInnerHTML={{ __html: html }}
-        {...props}
-      />
+      <div className={className} {...props}>
+        <Latex>{html}</Latex>
+      </div>
     );
   }
 
@@ -64,4 +63,3 @@ export const MessageContent = ({
     </div>
   );
 };
-
