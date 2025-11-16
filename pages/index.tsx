@@ -56,7 +56,7 @@ export default function FeedPage() {
     return () => window.removeEventListener('feed-search', handleSearch as EventListener)
   }, [])
 
-  // Filter posts based on search
+  // Filter posts based on search with proper null checks
   useEffect(() => {
     if (!searchTerm.trim()) {
       setFilteredPosts(posts)
@@ -64,12 +64,20 @@ export default function FeedPage() {
     }
 
     const searchLower = searchTerm.toLowerCase()
-    const filtered = posts.filter((post: any) => 
-      post.title.toLowerCase().includes(searchLower) ||
-      post.content.toLowerCase().includes(searchLower) ||
-      post.category.toLowerCase().includes(searchLower) ||
-      post.source.toLowerCase().includes(searchLower)
-    )
+    const filtered = posts.filter((post: any) => {
+      // Add null/undefined checks for all fields
+      const title = post.title?.toLowerCase() || ''
+      const content = post.content?.toLowerCase() || ''
+      const category = post.category?.toLowerCase() || ''
+      const source = post.source?.toLowerCase() || ''
+      
+      return (
+        title.includes(searchLower) ||
+        content.includes(searchLower) ||
+        category.includes(searchLower) ||
+        source.includes(searchLower)
+      )
+    })
     
     setFilteredPosts(filtered)
   }, [searchTerm, posts])

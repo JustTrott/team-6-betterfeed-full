@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ToastProvider } from '../context/toast'
 import { useAuthStore } from '../store/auth'
@@ -35,6 +35,14 @@ function AppShell({ Component, pageProps }: { Component: AppProps['Component']; 
   
   const isAuthPage = router.pathname === '/login' || router.pathname === '/signup'
   
+  // Memoize the search handler to prevent recreating it on every render
+  const handleSearch = (term: string) => {
+    // Only dispatch the event if we're on the feed page
+    if (router.pathname === '/') {
+      window.dispatchEvent(new CustomEvent('feed-search', { detail: term }))
+    }
+  }
+  
   if (isAuthPage) {
     return <Component {...pageProps} />
   }
@@ -45,10 +53,7 @@ function AppShell({ Component, pageProps }: { Component: AppProps['Component']; 
         user={user}
         onSignIn={() => router.push('/login')}
         onSignOut={logout}
-        onSearch={router.pathname === '/' ? (term: string) => {
-          // Search will be handled in FeedPage
-          window.dispatchEvent(new CustomEvent('feed-search', { detail: term }))
-        } : null}
+        onSearch={router.pathname === '/' ? handleSearch : null}
       />
       <main className="bf-main">
         {!initialized ? (

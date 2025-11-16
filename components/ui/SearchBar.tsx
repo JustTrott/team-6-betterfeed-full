@@ -1,5 +1,5 @@
 import { Search, X } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 
 interface SearchBarProps {
   onSearch: (term: string) => void
@@ -9,16 +9,18 @@ interface SearchBarProps {
 export const SearchBar = ({ onSearch, placeholder = "Search articles..." }: SearchBarProps) => {
   const [searchTerm, setSearchTerm] = useState('')
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     setSearchTerm(value)
     onSearch(value)
-  }
+  }, [onSearch])
 
-  const handleClear = () => {
+  const handleClear = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
     setSearchTerm('')
     onSearch('')
-  }
+  }, [onSearch])
 
   return (
     <div className="bf-search-bar">
@@ -29,9 +31,11 @@ export const SearchBar = ({ onSearch, placeholder = "Search articles..." }: Sear
         onChange={handleChange}
         placeholder={placeholder}
         className="bf-search-bar__input"
+        autoComplete="off"
       />
       {searchTerm && (
         <button 
+          type="button"
           onClick={handleClear} 
           className="bf-search-bar__clear"
           aria-label="Clear search"
@@ -42,4 +46,3 @@ export const SearchBar = ({ onSearch, placeholder = "Search articles..." }: Sear
     </div>
   )
 }
-
