@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'motion/react'
 import { ExternalLink, Sparkles, ArrowLeft } from 'lucide-react'
 import { Badge } from '../ui/badge'
@@ -23,6 +24,16 @@ interface Post {
   view_count: number
 }
 
+interface PostsPage {
+  items: Post[]
+  nextCursor: number | null
+}
+
+interface PostsQueryData {
+  pages: PostsPage[]
+  pageParams: number[]
+}
+
 interface FeedCardProps {
   post: Post
   isLiked: boolean
@@ -30,16 +41,108 @@ interface FeedCardProps {
   onLike: () => void
   onSave: () => void
   onOpen: () => void
+  category: string
 }
 
-export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen }: FeedCardProps) => {
+export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen, category }: FeedCardProps) => {
+  const queryClient = useQueryClient()
   const isRead = readingHistory.hasRead(post.id)
   const touchStartRef = useRef<number | null>(null)
   const touchEndRef = useRef<number | null>(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
   const [isExpanded, setIsExpanded] = useState(false)
+  const [hasBeenViewed, setHasBeenViewed] = useState(false)
+  const [localViewCount, setLocalViewCount] = useState(post.view_count)
+  const cardRef = useRef<HTMLElement>(null)
 
   const minSwipeDistance = 50 // Minimum distance for a swipe
+
+  // Update local view count when post prop changes
+  useEffect(() => {
+    setLocalViewCount(post.view_count)
+  }, [post.view_count])
+
+  // Track views using Intersection Observer
+  useEffect(() => {
+    if (!cardRef.current || hasBeenViewed) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          // Consider the card viewed if it's at least 50% visible
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+            // Delay to ensure user actually viewed it (not just scrolling past)
+            const viewTimeout = setTimeout(async () => {
+              if (!hasBeenViewed) {
+                setHasBeenViewed(true)
+                
+                // Track view via API if post has a numeric ID (exists in database)
+                if (typeof post.id === 'number') {
+                  try {
+                    const response = await fetch(`/api/posts/${post.id}/view`, {
+                      method: 'POST',
+                    })
+                    
+                    if (response.ok) {
+                      const updatedPost = await response.json()
+                      
+                      // Optimistically update local state immediately
+                      setLocalViewCount(updatedPost.view_count)
+                      
+                      // Update the React Query cache to persist the change
+                      queryClient.setQueryData<PostsQueryData>(['posts', category], (old) => {
+                        if (!old) return old
+                        
+                        return {
+                          ...old,
+                          pages: old.pages.map((page) => ({
+                            ...page,
+                            items: page.items.map((item) =>
+                              item.id === post.id
+                                ? { ...item, view_count: updatedPost.view_count }
+                                : item
+                            ),
+                          })),
+                        }
+                      })
+                    }
+                  } catch (error) {
+                    console.error('Failed to track view:', error)
+                  }
+                }
+              }
+            }, 1000) // 1 second delay
+
+            // Store the timeout so we can clear it if the card leaves the viewport
+            entry.target.setAttribute('data-view-timeout', viewTimeout.toString())
+          } else {
+            // Clear the timeout if the card leaves the viewport before 1 second
+            const timeoutId = entry.target.getAttribute('data-view-timeout')
+            if (timeoutId) {
+              clearTimeout(parseInt(timeoutId, 10))
+              entry.target.removeAttribute('data-view-timeout')
+            }
+          }
+        })
+      },
+      {
+        threshold: [0.5], // Trigger when 50% of the card is visible
+        rootMargin: '0px',
+      }
+    )
+
+    observer.observe(cardRef.current)
+
+    return () => {
+      if (cardRef.current) {
+        const timeoutId = cardRef.current.getAttribute('data-view-timeout')
+        if (timeoutId) {
+          clearTimeout(parseInt(timeoutId, 10))
+        }
+        observer.unobserve(cardRef.current)
+      }
+    }
+  }, [post.id, hasBeenViewed, queryClient, category])
 
   // Truncate content to 50 words
   const truncateContent = (text: string, wordLimit: number = 50): { truncated: string; needsTruncation: boolean } => {
@@ -88,18 +191,16 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen }: Fee
         breakPoint = i + 1
         break
       }
-      if (text[i] === ' ' && i > charIndex) {
-        breakPoint = i
-        break
-      }
     }
     
-    const truncated = text.substring(0, breakPoint).trim() + '...'
-    return { truncated, needsTruncation: true }
+    return {
+      truncated: text.substring(0, breakPoint) + '...',
+      needsTruncation: true,
+    }
   }
 
-  const contentInfo = post.content ? truncateContent(post.content, 50) : { truncated: '', needsTruncation: false }
-  const displayContent = isExpanded || !contentInfo.needsTruncation ? post.content : contentInfo.truncated
+  const contentInfo = post.content ? truncateContent(post.content) : { truncated: '', needsTruncation: false }
+  const displayContent = isExpanded ? post.content : contentInfo.truncated
 
   const handleOpen = () => {
     readingHistory.markAsRead(post.id)
@@ -112,52 +213,34 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen }: Fee
   }
 
   const onTouchMove = (e: React.TouchEvent) => {
-    if (!touchStartRef.current) return
-    const currentX = e.touches[0].clientX
-    const diff = touchStartRef.current - currentX
-    // Only allow left swipe (positive diff) and show visual feedback
-    if (diff > 0) {
-      setSwipeOffset(Math.min(diff, 150))
-      e.preventDefault() // Prevent scrolling while swiping horizontally
+    touchEndRef.current = e.touches[0].clientX
+    if (touchStartRef.current) {
+      const distance = touchStartRef.current - touchEndRef.current
+      setSwipeOffset(distance > 0 ? distance : 0)
     }
-  }
-
-  const onTouchEnd = () => {
-    if (!touchStartRef.current) return
-    
-    const endX = touchEndRef.current ?? touchStartRef.current
-    const distance = touchStartRef.current - endX
-    const isLeftSwipe = distance > minSwipeDistance
-
-    if (isLeftSwipe) {
-      handleOpen()
-    }
-    
-    setSwipeOffset(0)
-    touchStartRef.current = null
-    touchEndRef.current = null
   }
 
   const onMouseDown = (e: React.MouseEvent) => {
-    touchStartRef.current = e.clientX
     touchEndRef.current = null
+    touchStartRef.current = e.clientX
   }
 
   const onMouseMove = (e: React.MouseEvent) => {
-    if (!touchStartRef.current) return
-    const currentX = e.clientX
-    const diff = touchStartRef.current - currentX
-    // Only allow left swipe (positive diff)
-    if (diff > 0) {
-      setSwipeOffset(Math.min(diff, 150))
+    if (touchStartRef.current) {
+      touchEndRef.current = e.clientX
+      const distance = touchStartRef.current - touchEndRef.current
+      setSwipeOffset(distance > 0 ? distance : 0)
     }
   }
 
-  const onMouseUp = (e: React.MouseEvent) => {
-    if (!touchStartRef.current) return
-    
-    touchEndRef.current = e.clientX
-    const distance = touchStartRef.current - (touchEndRef.current ?? 0)
+  const onMouseUp = () => {
+    onTouchEnd()
+  }
+
+  const onTouchEnd = () => {
+    if (!touchStartRef.current || !touchEndRef.current) return
+
+    const distance = touchStartRef.current - touchEndRef.current
     const isLeftSwipe = distance > minSwipeDistance
 
     if (isLeftSwipe) {
@@ -179,6 +262,7 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen }: Fee
 
   return (
     <motion.article
+      ref={cardRef}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0, x: -swipeOffset }}
       transition={swipeOffset > 0 ? { duration: 0.1 } : { duration: 0.25, ease: 'easeOut' }}
@@ -262,7 +346,7 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen }: Fee
         <EngagementBar
           likes={post.like_count}
           saves={post.save_count}
-          views={post.view_count}
+          views={localViewCount}
           onLike={onLike}
           onSave={onSave}
           active={{ like: isLiked, save: isSaved }}
@@ -271,4 +355,3 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen }: Fee
     </motion.article>
   )
 }
-

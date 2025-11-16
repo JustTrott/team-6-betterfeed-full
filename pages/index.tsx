@@ -147,6 +147,7 @@ export default function FeedPage() {
                 setActivePost(post)
                 setPanelOpen(true)
               }}
+              category={category}
             />
           ))}
 

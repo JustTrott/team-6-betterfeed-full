@@ -141,6 +141,7 @@ export default function PostPage() {
           onLike={() => toggle('like')}
           onSave={() => toggle('save')}
           onOpen={() => setPanelOpen(true)}
+          category="General"
         />
       </motion.div>
 

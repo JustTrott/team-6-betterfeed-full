@@ -141,6 +141,7 @@ export default function SavedPage() {
                 setActivePost(post)
                 setPanelOpen(true)
               }}
+              category="General"
             />
           ))
         )}

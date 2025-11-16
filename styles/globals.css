@@ -2501,3 +2501,72 @@ h6,
     @apply bg-background text-foreground;
   }
 }
+
+/* ========================================
+   MOBILE CHAT PANEL FIXES
+   ======================================== */
+
+/* Make chat panel full width on mobile */
+@media (max-width: 479px) {
+  .bf-chat-slideover {
+    width: 100% !important;
+    padding: 16px 12px 12px !important;
+    gap: 12px !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+  }
+  
+  /* Smaller title on mobile */
+  .bf-chat-slideover__title {
+    font-size: 1rem !important;
+  }
+  
+  /* Bigger close button for touch */
+  .bf-chat-slideover__close {
+    padding: 8px 14px !important;
+    min-height: 44px !important;
+    font-size: 0.85rem !important;
+  }
+  
+  /* Better message sizing */
+  .bf-chat-slideover__message {
+    max-width: 85% !important;
+    padding: 10px 12px !important;
+    font-size: 0.88rem !important;
+    border-radius: 14px !important;
+  }
+  
+  /* Touch-friendly send button */
+  .bf-chat-slideover__submit {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    padding: 10px 14px !important;
+  }
+  
+  /* Prevent iOS zoom on input focus */
+  .bf-chat-slideover__input {
+    font-size: 16px !important;
+  }
+  
+  /* Ensure messages area is scrollable */
+  .bf-chat-slideover__messages {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  
+  /* Better header spacing on mobile */
+  .bf-chat-slideover__header {
+    gap: 8px !important;
+  }
+  
+  .bf-chat-slideover__meta {
+    font-size: 0.75rem !important;
+  }
+}
+
+/* Medium mobile devices */
+@media (min-width: 480px) and (max-width: 639px) {
+  .bf-chat-slideover {
+    width: min(100%, 400px) !important;
+  }
+}
