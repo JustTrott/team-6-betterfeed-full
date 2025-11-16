@@ -511,13 +511,13 @@ For complete SQL schema, see `sql/schema.sql`.
 
 ## Team Contributions
 
-**Temirlan**
+**Temirlan:**
 
-**Robbie**
+**Robbie:** Added in the AI functionality to the chat panel in the two themes decided on by the group.Also contributed towards bug fixing. Fixed the bug with the searchbar causing the website to crash. Fixed the bug where the Latex text in the AI chat panel would not render correctly. Fixed the bug where the AI chat panel would not render correctly on mobile. Added in functionality for the view component of the feed.
 
-**Veyd**
+**Veyd:**
 
-**Kyle**
+**Kyle:**
 
 ## Project Structure
 
