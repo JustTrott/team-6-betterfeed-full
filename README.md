@@ -511,9 +511,9 @@ For complete SQL schema, see `sql/schema.sql`.
 
 ## Team Contributions
 
-**Temirlan:**
+**Temirlan:** Created the monorepo from the two existing repos for the fronend and backend and migrated from fastapi to nextjs api routes. Connected both the fronend and back including the auth. Also added smooth streaming to AI chat and improved the UI of the AI chat.
 
-**Robbie:** Added in the AI functionality to the chat panel in the two themes decided on by the group.Also contributed towards bug fixing. Fixed the bug with the searchbar causing the website to crash. Fixed the bug where the Latex text in the AI chat panel would not render correctly. Fixed the bug where the AI chat panel would not render correctly on mobile. Added in functionality for the view component of the feed.
+**Robbie:** Added in the AI functionality to the chat panel. Fixed the bug with the searchbar causing the website to crash. Fixed the bug where the Latex text in the AI chat panel would not render correctly. Fixed the bug where the AI chat panel would not render correctly on mobile. Added in functionality for the view component of the feed.
 
 **Veyd:**
 
