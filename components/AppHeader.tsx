@@ -1,6 +1,7 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { LogIn, LogOut, Sparkle, User } from 'lucide-react'
+import { LogIn, LogOut, User } from 'lucide-react'
 import { Button } from './ui/button'
 import { AvatarFallback, AvatarImage, AvatarRoot } from './ui/avatar'
 import { SearchBar } from './ui/SearchBar'
@@ -28,7 +29,14 @@ export const AppHeader = ({ user, onSignIn, onSignOut, onSearch }: AppHeaderProp
       <div className="bf-header__inner">
         <Link href="/" className="bf-header__logo">
           <span className="bf-header__logo-badge">
-            <Sparkle className="bf-icon-sm" />
+            <Image
+              src="/betterfeed-logo.svg"
+              alt="BetterFeed logo"
+              width={56}
+              height={56}
+              className="bf-header__logo-img"
+              priority
+            />
           </span>
           <div className="bf-header__logo-text">
             <span className="bf-header__logo-title">BetterFeed</span>
@@ -99,4 +107,3 @@ export const AppHeader = ({ user, onSignIn, onSignOut, onSearch }: AppHeaderProp
     </header>
   )
 }
-

@@ -270,16 +270,23 @@ h6,
 }
 
 .bf-header__logo-badge {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
-  color: #f6fdf6;
+  background: var(--color-primary);
+  border: none;
   box-shadow: var(--shadow-lifted);
   transition: transform 0.3s ease;
+}
+
+.bf-header__logo-img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  filter: brightness(0) saturate(100%) invert(1);
 }
 
 .bf-header__logo:hover .bf-header__logo-badge {
