@@ -55,6 +55,12 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
   const previousFocusRef = useRef<HTMLElement | null>(null)
   const panelTitleId = useId()
 
+  // Swipe gesture state
+  const touchStartRef = useRef<number | null>(null)
+  const touchEndRef = useRef<number | null>(null)
+  const [swipeOffset, setSwipeOffset] = useState(0)
+  const minSwipeDistance = 50 // Minimum distance for a swipe to close
+
   const activePostId = post?.id ?? null
 
   const { messages, sendMessage, status, setMessages } = useChat({
@@ -179,6 +185,81 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     [selectedStyle]
   )
 
+  // Swipe gesture handlers
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchEndRef.current = null
+    touchStartRef.current = e.touches[0].clientX
+  }
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    touchEndRef.current = e.touches[0].clientX
+    if (touchStartRef.current) {
+      // For closing, we want to detect right swipes (positive distance)
+      const distance = e.touches[0].clientX - touchStartRef.current
+      setSwipeOffset(distance > 0 ? distance : 0)
+    }
+  }
+
+  const onTouchEnd = () => {
+    if (!touchStartRef.current || !touchEndRef.current) {
+      setSwipeOffset(0)
+      return
+    }
+
+    const distance = touchEndRef.current - touchStartRef.current
+    const isRightSwipe = distance > minSwipeDistance
+
+    if (isRightSwipe) {
+      onClose()
+    }
+    
+    setSwipeOffset(0)
+    touchStartRef.current = null
+    touchEndRef.current = null
+  }
+
+  // Mouse gesture handlers for desktop
+  const onMouseDown = (e: React.MouseEvent) => {
+    touchEndRef.current = null
+    touchStartRef.current = e.clientX
+  }
+
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (touchStartRef.current) {
+      touchEndRef.current = e.clientX
+      const distance = e.clientX - touchStartRef.current
+      setSwipeOffset(distance > 0 ? distance : 0)
+    }
+  }
+
+  const onMouseUp = () => {
+    if (!touchStartRef.current || !touchEndRef.current) {
+      setSwipeOffset(0)
+      touchStartRef.current = null
+      touchEndRef.current = null
+      return
+    }
+
+    const distance = touchEndRef.current - touchStartRef.current
+    const isRightSwipe = distance > minSwipeDistance
+
+    if (isRightSwipe) {
+      onClose()
+    }
+
+    setSwipeOffset(0)
+    touchStartRef.current = null
+    touchEndRef.current = null
+  }
+
+  const onMouseLeave = () => {
+    if (touchStartRef.current) {
+      setSwipeOffset(0)
+      touchStartRef.current = null
+      touchEndRef.current = null
+    }
+  }
+
   return (
     <AnimatePresence>
       {open && post ? (
@@ -201,9 +282,23 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
             aria-labelledby={panelTitleId}
             className="bf-chat-slideover"
             initial={{ x: '100%' }}
-            animate={{ x: 0 }}
+            animate={{ x: swipeOffset }}
             exit={{ x: '100%' }}
-            transition={{ type: 'spring', stiffness: 400, damping: 40 }}
+            transition={swipeOffset > 0 ? { duration: 0.1 } : { type: 'spring', stiffness: 400, damping: 40 }}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={(e) => {
+              touchEndRef.current = e.changedTouches[0].clientX
+              onTouchEnd()
+            }}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseLeave}
+            style={{ 
+              touchAction: 'pan-y',
+              cursor: swipeOffset > 0 ? 'grabbing' : 'default'
+            }}
           >
             <header className="bf-chat-slideover__header">
               <div className="bf-chat-slideover__header-content">
