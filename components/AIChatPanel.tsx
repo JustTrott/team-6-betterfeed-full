@@ -60,6 +60,7 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
   const touchEndRef = useRef<number | null>(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
   const minSwipeDistance = 50 // Minimum distance for a swipe to close
+  const scrollPositionRef = useRef<number>(0) // Store scroll position
 
   const activePostId = post?.id ?? null
 
@@ -96,9 +97,19 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
   useEffect(() => {
     if (!open) return undefined
 
+    // Save current scroll position
+    scrollPositionRef.current = window.scrollY || window.pageYOffset
+
     // Lock body scroll when panel is open
     const originalStyle = window.getComputedStyle(document.body).overflow
+    const originalPosition = document.body.style.position
+    const originalTop = document.body.style.top
+    const originalWidth = document.body.style.width
+    
     document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollPositionRef.current}px`
+    document.body.style.width = '100%'
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -110,7 +121,15 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
+      
+      // Restore body styles
       document.body.style.overflow = originalStyle
+      document.body.style.position = originalPosition
+      document.body.style.top = originalTop
+      document.body.style.width = originalWidth
+      
+      // Restore scroll position
+      window.scrollTo(0, scrollPositionRef.current)
     }
   }, [open, onClose])
 
