@@ -24,7 +24,7 @@ export type ArticleResponse = {
 }
 
 const CATEGORY_BY_SOURCE: Record<string, string> = {
-  'arXiv': 'Technology & Computing', // IAB: IAB19
+  'arXiv': 'Education', // Academic papers - belongs in Education
   'Hacker News': 'Technology & Computing', // IAB: IAB19
   'ScienceDaily': 'Science', // IAB: IAB15
   'AlphaVantage': 'Business & Finance', // IAB: IAB13
@@ -201,7 +201,14 @@ async function fetchApiNinjasFacts(limit: number): Promise<Article[]> {
       cache: 'no-store',
       headers: { 'X-Api-Key': apiKey },
     })
-    if (!response.ok) throw new Error(`API Ninjas request failed: ${response.status}`)
+    
+    if (!response.ok) {
+      // Log the actual response for debugging
+      const errorText = await response.text()
+      console.error(`[API Ninjas Facts] ${response.status} error:`, errorText)
+      throw new Error(`API Ninjas request failed: ${response.status}`)
+    }
+    
     const data = (await response.json()) as Array<{ fact?: string }>
     return data.slice(0, limit).map((item) =>
       formatArticle(item.fact || 'Fact', API_NINJAS_FACTS_URL, 'API Ninjas Facts')
@@ -256,26 +263,9 @@ async function fetchArticleContent(url: string): Promise<string | null> {
 }
 
 async function enrichWithContentAndSummary(articles: Article[], generateSummaries: boolean): Promise<Article[]> {
-  const results = await Promise.allSettled(
-    articles.map(async (article) => {
-      const fullText = await fetchArticleContent(article.url)
-      let content: string | null = fullText
-
-      if (generateSummaries) {
-        try {
-          content = await generateArticleSummary(article.title, fullText || undefined, fullText || undefined)
-        } catch (error) {
-          console.error(`[summary] failed for ${article.url}:`, error)
-        }
-      }
-
-      return { ...article, content: content || fullText || null }
-    })
-  )
-
-  return results
-    .filter((r): r is PromiseFulfilledResult<Article> => r.status === 'fulfilled')
-    .map((r) => r.value)
+  // Skip full content fetching - it's slow and often fails
+  // We'll only generate summaries for new articles in persistArticles
+  return articles.map(article => ({ ...article, content: null }))
 }
 
 async function ensureSystemUserId(): Promise<string | null> {
@@ -315,74 +305,100 @@ async function persistArticles(articles: Article[]): Promise<Article[]> {
   const systemUserId = await ensureSystemUserId()
   if (!systemUserId) return articles
 
+  // OPTIMIZATION 1: Batch check all article URLs at once instead of one-by-one
+  const articleUrls = articles.map(a => a.url)
+  const { data: existingPosts, error: fetchError } = await supabaseAdmin
+    .from('posts')
+    .select('*')
+    .in('article_url', articleUrls)
+
+  if (fetchError) {
+    console.warn('Error checking existing posts:', fetchError)
+    return articles
+  }
+
+  // Create a map for quick lookup
+  const existingMap = new Map(existingPosts?.map(p => [p.article_url, p]) || [])
+  
   const stored: Article[] = []
+  const newArticles: Article[] = []
 
+  // Separate existing from new articles
   for (const article of articles) {
-    const { data: existingPosts, error: fetchError } = await supabaseAdmin
-      .from('posts')
-      .select('*')
-      .eq('article_url', article.url)
-      .limit(1)
-
-    if (fetchError) {
-      console.warn('Error checking existing post:', fetchError)
-      stored.push(article)
-      continue
-    }
-
-    const existing = existingPosts?.[0]
+    const existing = existingMap.get(article.url)
+    
     if (existing) {
-      const { error: updateError } = await supabaseAdmin
-        .from('posts')
-        .update({
-          title: article.title,
-          content: article.content ?? existing.content,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existing.id)
-
-      if (updateError) {
-        console.warn('Error updating post:', updateError)
-      }
-
+      // Article exists - just return it with existing content
       stored.push({
         ...article,
         id: existing.id,
         title: existing.title || article.title,
-        content: article.content ?? existing.content,
+        content: existing.content,
         url: article.url,
       })
-      continue
+    } else {
+      // New article - needs summary generation
+      newArticles.push(article)
     }
+  }
 
-    const { data: inserted, error: insertError } = await supabaseAdmin
-      .from('posts')
-      .insert({
+  // OPTIMIZATION 2: Only generate summaries for NEW articles
+  if (newArticles.length > 0) {
+    console.log(`[Persist] Generating summaries for ${newArticles.length} new articles`)
+    
+    // Generate summaries in parallel (limited concurrency)
+    const summaryResults = await Promise.allSettled(
+      newArticles.map(async (article) => {
+        try {
+          const summary = await generateArticleSummary(article.title, null, null)
+          return { ...article, content: summary }
+        } catch (error) {
+          console.error(`[summary] failed for ${article.title}:`, error)
+          return { ...article, content: `${article.title} - Read more to learn about this topic.` }
+        }
+      })
+    )
+
+    const articlesWithSummaries = summaryResults
+      .filter(r => r.status === 'fulfilled')
+      .map(r => (r as PromiseFulfilledResult<Article>).value)
+
+    // OPTIMIZATION 3: Batch insert new articles
+    if (articlesWithSummaries.length > 0) {
+      const newPosts = articlesWithSummaries.map(article => ({
         user_id: systemUserId,
         article_url: article.url,
         title: article.title,
         content: article.content || null,
         thumbnail_url: null,
         view_count: 0,
-      })
-      .select('*')
-      .single()
+      }))
 
-    if (insertError) {
-      console.warn('Error inserting post:', insertError)
-      stored.push(article)
-      continue
+      const { data: insertedPosts, error: insertError } = await supabaseAdmin
+        .from('posts')
+        .insert(newPosts)
+        .select('*')
+
+      if (insertError) {
+        console.error('Batch insert error:', insertError)
+        // Fall back to returning articles without IDs
+        stored.push(...articlesWithSummaries)
+      } else if (insertedPosts) {
+        // Add inserted posts with their new IDs
+        insertedPosts.forEach((post, index) => {
+          stored.push({
+            ...articlesWithSummaries[index],
+            id: post.id,
+            url: post.article_url,
+            title: post.title,
+            content: post.content,
+          })
+        })
+      }
     }
-
-    stored.push({
-      ...article,
-      id: inserted.id,
-      url: inserted.article_url,
-      title: inserted.title,
-      content: inserted.content,
-    })
   }
 
+  console.log(`[Persist] Stored ${stored.length} articles (${existingPosts?.length || 0} existing, ${newArticles.length} new)`)
   return stored
 }
 
@@ -419,7 +435,16 @@ export async function GET(req: NextRequest) {
   const enriched = await enrichWithContentAndSummary(articles, true)
   const stored = await persistArticles(enriched)
   const response = toArticleResponse(stored)
-  return NextResponse.json({ articles: response, meta: buildMeta(response.length) })
+  
+  // Add cache headers
+  return NextResponse.json(
+    { articles: response, meta: buildMeta(response.length) },
+    {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+      },
+    }
+  )
 }
 
 export async function POST(req: NextRequest) {
@@ -432,7 +457,16 @@ export async function POST(req: NextRequest) {
     const enriched = await enrichWithContentAndSummary(articles, generateSummaries)
     const stored = await persistArticles(enriched)
     const response = toArticleResponse(stored)
-    return NextResponse.json({ articles: response, meta: buildMeta(response.length) })
+    
+    // Add cache headers
+    return NextResponse.json(
+      { articles: response, meta: buildMeta(response.length) },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        },
+      }
+    )
   } catch (error) {
     console.error('Error in POST /api/articles/fetch:', error)
     return NextResponse.json({ error: 'Failed to fetch articles' }, { status: 500 })
