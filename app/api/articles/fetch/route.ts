@@ -27,7 +27,7 @@ const CATEGORY_BY_SOURCE: Record<string, string> = {
   'arXiv': 'Education', // Academic papers - belongs in Education
   'Hacker News': 'Technology & Computing', // IAB: IAB19
   'ScienceDaily': 'Science', // IAB: IAB15
-  'AlphaVantage': 'Business & Finance', // IAB: IAB13
+  'NewsAPI Business': 'Business & Finance', // IAB: IAB13 (Changed from AlphaVantage)
   'World News API': 'Government & Politics', // IAB: IAB11
   'API Ninjas Facts': 'Education', // IAB: IAB5 (Education) / IAB21 (Reference)
 }
@@ -35,7 +35,7 @@ const CATEGORY_BY_SOURCE: Record<string, string> = {
 const HN_TOP_STORIES_URL = 'https://hacker-news.firebaseio.com/v0/topstories.json'
 const HN_ITEM_URL = (id: number) => `https://hacker-news.firebaseio.com/v0/item/${id}.json`
 const SCIENCE_DAILY_RSS = 'https://www.sciencedaily.com/rss/top/science.xml'
-const ALPHAVANTAGE_NEWS_URL = 'https://www.alphavantage.co/query'
+const NEWSAPI_URL = 'https://newsapi.org/v2/top-headlines' // Changed from AlphaVantage
 const WORLD_NEWS_URL = 'https://api.worldnewsapi.com/search-news'
 const API_NINJAS_FACTS_URL = 'https://api.api-ninjas.com/v1/facts'
 
@@ -131,30 +131,51 @@ async function fetchScienceDaily(limit: number): Promise<Article[]> {
   }
 }
 
-async function fetchAlphaVantage(limit: number): Promise<Article[]> {
-  const apiKey = process.env.ALPHAVANTAGE_API_KEY
+// REPLACED: fetchAlphaVantage with fetchNewsAPI
+async function fetchNewsAPI(limit: number): Promise<Article[]> {
+  const apiKey = process.env.NEWSAPI_KEY
   if (!apiKey) {
-    console.warn('[AlphaVantage] ALPHAVANTAGE_API_KEY is not set')
+    console.warn('[NewsAPI Business] NEWSAPI_KEY is not set')
     return []
   }
 
   try {
-    const url = new URL(ALPHAVANTAGE_NEWS_URL)
-    url.searchParams.set('function', 'NEWS_SENTIMENT')
-    url.searchParams.set('topics', 'financial_markets')
-    url.searchParams.set('sort', 'LATEST')
-    url.searchParams.set('limit', String(limit))
-    url.searchParams.set('apikey', apiKey)
+    const url = new URL(NEWSAPI_URL)
+    url.searchParams.set('country', 'us') // REQUIRED for more than 3 results on free tier
+    url.searchParams.set('category', 'business')
+    url.searchParams.set('pageSize', String(limit))
+    url.searchParams.set('apiKey', apiKey)
 
     const response = await fetch(url.toString(), { cache: 'no-store' })
-    if (!response.ok) throw new Error(`AlphaVantage request failed: ${response.status}`)
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`[NewsAPI Business] ${response.status} error:`, errorText)
+      throw new Error(`NewsAPI request failed: ${response.status}`)
+    }
+    
     const payload = await response.json()
-    const feed = (payload?.feed || []) as Array<{ title?: string; url?: string }>
-    return feed.slice(0, limit).map((item) =>
-      formatArticle(item.title || 'Market News', item.url || '', 'AlphaVantage')
+    
+    // Check for API errors
+    if (payload.status === 'error') {
+      console.error('[NewsAPI Business] API error:', payload.message)
+      return []
+    }
+    
+    const articles = (payload?.articles || []) as Array<{ 
+      title?: string
+      url?: string
+      description?: string
+    }>
+    
+    return articles.slice(0, limit).map((item) =>
+      formatArticle(
+        item.title || 'Business News', 
+        item.url || '', 
+        'NewsAPI Business'
+      )
     )
   } catch (error) {
-    console.error('[AlphaVantage] fetch failed:', error)
+    console.error('[NewsAPI Business] fetch failed:', error)
     return []
   }
 }
@@ -219,12 +240,13 @@ async function fetchApiNinjasFacts(limit: number): Promise<Article[]> {
   }
 }
 
+// UPDATED: Changed fetchAlphaVantage to fetchNewsAPI
 async function fetchAllArticles(limit = MAX_PER_SOURCE): Promise<Article[]> {
   const fetchers = [
     fetchArxiv(limit),
     fetchHackerNews(limit),
     fetchScienceDaily(limit),
-    fetchAlphaVantage(limit),
+    fetchNewsAPI(limit), // CHANGED from fetchAlphaVantage(limit)
     fetchWorldNews(limit),
     fetchApiNinjasFacts(limit),
   ]
