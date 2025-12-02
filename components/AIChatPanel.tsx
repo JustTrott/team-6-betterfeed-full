@@ -122,14 +122,23 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
       
+      // Save scroll position one more time before restoring styles
+      // This ensures we have the correct position even if something changed
+      const savedScrollPosition = scrollPositionRef.current
+      
       // Restore body styles
       document.body.style.overflow = originalStyle
       document.body.style.position = originalPosition
       document.body.style.top = originalTop
       document.body.style.width = originalWidth
       
-      // Restore scroll position
-      window.scrollTo(0, scrollPositionRef.current)
+      // Restore scroll position after styles are applied
+      // Use double requestAnimationFrame to ensure DOM has fully updated
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.scrollTo(0, savedScrollPosition)
+        })
+      })
     }
   }, [open, onClose])
 

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { motion } from 'motion/react'
 import { ExternalLink, Sparkles, ArrowLeft } from 'lucide-react'
 import { Badge } from '../ui/badge'
@@ -7,6 +7,8 @@ import { Button } from '../ui/button'
 import { EngagementBar } from './EngagementBar'
 import { ReadBadge } from './ReadBadge'
 import { readingHistory } from '../../lib/readingHistory'
+import { useAuthStore } from '../../store/auth'
+import type { Interaction } from '../../lib/db/schema'
 import Latex from 'react-latex-next'
 import 'katex/dist/katex.min.css'
 
@@ -46,71 +48,142 @@ interface FeedCardProps {
 
 export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen, category }: FeedCardProps) => {
   const queryClient = useQueryClient()
+  const { user } = useAuthStore()
   const isRead = readingHistory.hasRead(post.id)
   const touchStartRef = useRef<number | null>(null)
   const touchEndRef = useRef<number | null>(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
   const [isExpanded, setIsExpanded] = useState(false)
   const [hasBeenViewed, setHasBeenViewed] = useState(false)
-  const [localViewCount, setLocalViewCount] = useState(post.view_count)
+  const [shouldLoadInteractions, setShouldLoadInteractions] = useState(false)
   const cardRef = useRef<HTMLElement>(null)
+  
+  // Lazy load interactions when card is near viewport
+  const { data: interactionsData } = useQuery({
+    queryKey: ['interactions', post.id],
+    queryFn: async () => {
+      if (typeof post.id !== 'number') return []
+      const response = await fetch(`/api/interactions/${post.id}`)
+      if (!response.ok) return []
+      const interactions: Interaction[] = await response.json()
+      
+      // Update user interactions state if user is logged in
+      if (user) {
+        const userLike = interactions.find((i) => i.user_id === user.id && i.interaction_type === 'like')
+        const userSave = interactions.find((i) => i.user_id === user.id && i.interaction_type === 'save')
+        
+        queryClient.setQueryData(['user-interactions', user.id], (old: { likes: Set<number | string>; saves: Set<number | string> }) => {
+          const newInteractions = {
+            likes: new Set(old?.likes || []),
+            saves: new Set(old?.saves || []),
+          }
+          if (userLike) {
+            newInteractions.likes.add(post.id)
+          } else {
+            newInteractions.likes.delete(post.id)
+          }
+          if (userSave) {
+            newInteractions.saves.add(post.id)
+          } else {
+            newInteractions.saves.delete(post.id)
+          }
+          return newInteractions
+        })
+      }
+      
+      // Update posts cache with interaction counts
+      const likeCount = interactions.filter((i) => i.interaction_type === 'like').length
+      const saveCount = interactions.filter((i) => i.interaction_type === 'save').length
+      
+      queryClient.setQueryData<PostsQueryData>(['posts', category], (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            items: page.items.map((item) =>
+              item.id === post.id
+                ? { ...item, like_count: likeCount, save_count: saveCount }
+                : item
+            ),
+          })),
+        }
+      })
+      
+      return interactions
+    },
+    enabled: shouldLoadInteractions && typeof post.id === 'number',
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  })
+  
+  // Calculate interaction counts from loaded data
+  const likeCount = interactionsData 
+    ? interactionsData.filter((i) => i.interaction_type === 'like').length 
+    : post.like_count
+  const saveCount = interactionsData 
+    ? interactionsData.filter((i) => i.interaction_type === 'save').length 
+    : post.save_count
 
   const minSwipeDistance = 50 // Minimum distance for a swipe
 
-  // Update local view count when post prop changes
+  // Track views and load interactions using Intersection Observer
   useEffect(() => {
-    setLocalViewCount(post.view_count)
-  }, [post.view_count])
-
-  // Track views using Intersection Observer
-  useEffect(() => {
-    if (!cardRef.current || hasBeenViewed) return
+    const cardElement = cardRef.current
+    if (!cardElement) return
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
+          // Load interactions when card is near viewport (200px before it enters)
+          if (entry.isIntersecting && !shouldLoadInteractions) {
+            setShouldLoadInteractions(true)
+          }
+          
           // Consider the card viewed if it's at least 50% visible
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.5 && !hasBeenViewed) {
             // Delay to ensure user actually viewed it (not just scrolling past)
             const viewTimeout = setTimeout(async () => {
-              if (!hasBeenViewed) {
-                setHasBeenViewed(true)
+              setHasBeenViewed((prev) => {
+                if (prev) return prev
                 
                 // Track view via API if post has a numeric ID (exists in database)
                 if (typeof post.id === 'number') {
-                  try {
-                    const response = await fetch(`/api/posts/${post.id}/view`, {
-                      method: 'POST',
+                  fetch(`/api/posts/${post.id}/view`, {
+                    method: 'POST',
+                  })
+                    .then((response) => {
+                      if (response.ok) {
+                        return response.json()
+                      }
+                      return null
                     })
-                    
-                    if (response.ok) {
-                      const updatedPost = await response.json()
-                      
-                      // Optimistically update local state immediately
-                      setLocalViewCount(updatedPost.view_count)
-                      
-                      // Update the React Query cache to persist the change
-                      queryClient.setQueryData<PostsQueryData>(['posts', category], (old) => {
-                        if (!old) return old
-                        
-                        return {
-                          ...old,
-                          pages: old.pages.map((page) => ({
-                            ...page,
-                            items: page.items.map((item) =>
-                              item.id === post.id
-                                ? { ...item, view_count: updatedPost.view_count }
-                                : item
-                            ),
-                          })),
-                        }
-                      })
-                    }
-                  } catch (error) {
-                    console.error('Failed to track view:', error)
-                  }
+                    .then((updatedPost) => {
+                      if (updatedPost) {
+                        // Update the React Query cache to persist the change
+                        queryClient.setQueryData<PostsQueryData>(['posts', category], (old) => {
+                          if (!old) return old
+                          
+                          return {
+                            ...old,
+                            pages: old.pages.map((page) => ({
+                              ...page,
+                              items: page.items.map((item) =>
+                                item.id === post.id
+                                  ? { ...item, view_count: updatedPost.view_count }
+                                  : item
+                              ),
+                            })),
+                          }
+                        })
+                      }
+                    })
+                    .catch((error) => {
+                      console.error('Failed to track view:', error)
+                    })
                 }
-              }
+                
+                return true
+              })
             }, 1000) // 1 second delay
 
             // Store the timeout so we can clear it if the card leaves the viewport
@@ -126,23 +199,21 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen, categ
         })
       },
       {
-        threshold: [0.5], // Trigger when 50% of the card is visible
-        rootMargin: '0px',
+        threshold: [0, 0.5], // Trigger when card enters viewport and when 50% visible
+        rootMargin: '200px', // Start loading interactions 200px before card enters viewport
       }
     )
 
-    observer.observe(cardRef.current)
+    observer.observe(cardElement)
 
     return () => {
-      if (cardRef.current) {
-        const timeoutId = cardRef.current.getAttribute('data-view-timeout')
-        if (timeoutId) {
-          clearTimeout(parseInt(timeoutId, 10))
-        }
-        observer.unobserve(cardRef.current)
+      const timeoutId = cardElement.getAttribute('data-view-timeout')
+      if (timeoutId) {
+        clearTimeout(parseInt(timeoutId, 10))
       }
+      observer.unobserve(cardElement)
     }
-  }, [post.id, hasBeenViewed, queryClient, category])
+  }, [post.id, hasBeenViewed, queryClient, category, shouldLoadInteractions])
 
   // Truncate content to 50 words
   const truncateContent = (text: string, wordLimit: number = 50): { truncated: string; needsTruncation: boolean } => {
@@ -340,8 +411,8 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen, categ
 
       <div className="bf-feed-card__actions">
         <EngagementBar
-          likes={post.like_count}
-          saves={post.save_count}
+          likes={likeCount}
+          saves={saveCount}
           onLike={onLike}
           onSave={onSave}
           active={{ like: isLiked, save: isSaved }}
