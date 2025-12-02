@@ -318,17 +318,13 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen, categ
         </div>
 
         <div className="bf-feed-card__source">
-          <span className="bf-feed-card__source-tag">
-            <Sparkles className="bf-icon-sm" />
-            {post.source}
-          </span>
           <a
             href={post.article_url}
             target="_blank"
             rel="noreferrer"
             className="bf-feed-card__link"
           >
-            Read full article
+            Read full article on {post.source}
             <ExternalLink className="bf-icon-sm" />
           </a>
         </div>
