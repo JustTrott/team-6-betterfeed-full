@@ -346,7 +346,6 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen, categ
         <EngagementBar
           likes={post.like_count}
           saves={post.save_count}
-          views={localViewCount}
           onLike={onLike}
           onSave={onSave}
           active={{ like: isLiked, save: isSaved }}
