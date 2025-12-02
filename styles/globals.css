@@ -717,6 +717,7 @@ h6,
   scrollbar-width: none;
   -ms-overflow-style: none;
   scroll-snap-type: x mandatory;
+  scroll-padding: 0 40px;
 }
 
 .bf-category-tabs::-webkit-scrollbar {
@@ -724,16 +725,13 @@ h6,
 }
 
 .bf-category-tabs__list {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(120px, 1fr);
+  display: inline-flex;
   align-items: center;
-  justify-items: center;
   min-width: 100%;
   padding: 0;
   margin: 0;
   list-style: none;
-  column-gap: 0;
+  gap: 28px;
 }
 
 .bf-category-tabs__item {
@@ -742,14 +740,13 @@ h6,
   align-items: center;
   justify-content: center;
   white-space: nowrap;
-  width: 100%;
   scroll-snap-align: center;
 }
 
 .bf-category-tabs__item:not(:first-child)::before {
   content: '|';
   position: absolute;
-  left: 0;
+  left: -14px;
   top: 50%;
   transform: translate(-50%, -50%);
   color: rgba(28, 37, 65, 0.25);
@@ -762,13 +759,15 @@ h6,
   background: transparent;
   color: var(--text-secondary);
   font-weight: 600;
-  padding: 0 8px;
+  padding: 0 14px;
   cursor: pointer;
   transition: color 0.3s ease, text-shadow 0.3s ease, transform 0.3s ease;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  letter-spacing: 0.01em;
+  transform: scale(0.94);
 }
 
 .bf-category-tabs__link:hover {
@@ -779,6 +778,7 @@ h6,
 .bf-category-tabs__item.is-active .bf-category-tabs__link {
   color: var(--color-primary);
   text-shadow: 0 1px 8px rgba(0, 102, 19, 0.25);
+  transform: scale(1.05);
 }
 
 .bf-category-tabs__item.is-disabled .bf-category-tabs__link {

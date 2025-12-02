@@ -50,7 +50,7 @@ export const useFeed = () => {
   const { user, accessToken } = useAuthStore()
   const { pushToast } = useToast()
   const queryClient = useQueryClient()
-  const [category, setCategoryState] = useState('General')
+  const [category, setCategoryState] = useState('All')
 
   // Fetch user interactions - populated when posts are fetched
   const { data: interactionsData } = useQuery({
@@ -167,8 +167,11 @@ export const useFeed = () => {
         }
       })
 
+      const filteredItems =
+        category === 'All' ? items : items.filter((item) => item.category === category)
+
       return {
-        items,
+        items: filteredItems,
         nextCursor: data.meta.page < data.meta.total_pages ? pageParam + 1 : null,
       }
     },
@@ -404,4 +407,3 @@ export const useFeed = () => {
     refresh,
   }
 }
-

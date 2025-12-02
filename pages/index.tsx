@@ -8,19 +8,13 @@ import { useFeed } from '../hooks/useFeed'
 import { useAuthStore } from '../store/auth'
 import { useToast } from '../context/toast'
 
-// Common arXiv categories
-const ARXIV_CATEGORIES = [
-  'General',
+const FEED_CATEGORIES = [
   'All',
-  'cs.AI', // Artificial Intelligence
-  'cs.LG', // Machine Learning
-  'cs.CV', // Computer Vision
-  'cs.CL', // Computation and Language
-  'cs.NE', // Neural and Evolutionary Computing
-  'math.CO', // Combinatorics
-  'math.PR', // Probability
-  'physics.optics', // Optics
-  'physics.quant-ph', // Quantum Physics
+  'Technology & Computing',
+  'Science',
+  'Business & Finance',
+  'Government & Politics',
+  'Education',
 ]
 
 export default function FeedPage() {
@@ -39,7 +33,7 @@ export default function FeedPage() {
     toggleSave,
     refresh,
   } = useFeed()
-  const [categories] = useState(ARXIV_CATEGORIES)
+  const [categories] = useState(FEED_CATEGORIES)
   const [activePost, setActivePost] = useState<any>(null)
   const [panelOpen, setPanelOpen] = useState(false)
   
