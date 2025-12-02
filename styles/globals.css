@@ -713,7 +713,7 @@ h6,
 /* Category Tabs */
 .bf-category-tabs {
   overflow-x: auto;
-  padding: 12px 16px 16px;
+  padding: 8px 0 20px;
   scrollbar-width: none;
   -ms-overflow-style: none;
   scroll-snap-type: x proximity;
@@ -746,42 +746,42 @@ h6,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 10px 20px;
-  border: 1.5px solid rgba(171, 129, 205, 0.3);
-  border-radius: 24px;
-  background: rgba(28, 37, 65, 0.4);
+  padding: 10px 22px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  transition: all 0.2s ease;
-  letter-spacing: 0.02em;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px -4px rgba(28, 37, 65, 0.15);
 }
 
 .bf-category-tabs__link:hover {
-  background: rgba(171, 129, 205, 0.2);
-  border-color: rgba(171, 129, 205, 0.5);
-  color: #ffffff;
+  background: rgba(28, 37, 65, 0.08);
+  border-color: rgba(28, 37, 65, 0.25);
+  color: var(--color-deep);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(171, 129, 205, 0.2);
+  box-shadow: 0 8px 20px -8px rgba(28, 37, 65, 0.2);
 }
 
 .bf-category-tabs__item.is-active .bf-category-tabs__link {
-  background: rgba(0, 102, 19, 0.35);
-  border-color: rgba(0, 102, 19, 0.6);
-  color: #ffffff;
-  box-shadow: 0 2px 12px rgba(0, 102, 19, 0.3);
+  background: rgba(0, 102, 19, 0.12);
+  border-color: rgba(0, 102, 19, 0.3);
+  color: var(--color-primary);
+  box-shadow: 0 8px 20px -8px rgba(0, 102, 19, 0.25);
 }
 
 .bf-category-tabs__item.is-active .bf-category-tabs__link:hover {
-  background: rgba(0, 102, 19, 0.45);
-  border-color: rgba(0, 102, 19, 0.7);
+  background: rgba(0, 102, 19, 0.18);
+  border-color: rgba(0, 102, 19, 0.4);
 }
 
 .bf-category-tabs__item.is-disabled .bf-category-tabs__link {
   color: var(--text-muted);
-  opacity: 0.4;
+  opacity: 0.5;
   cursor: not-allowed;
   pointer-events: none;
 }
