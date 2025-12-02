@@ -105,52 +105,10 @@ export const useFeed = () => {
       // Create a map of article_url to post data
       const postMap = new Map(posts.map((p) => [p.article_url, p]))
       
-      // Fetch interactions for all posts in parallel
-      const postIds = Array.from(postMap.values()).map((p) => p.id)
-      const interactionsPromises = postIds.map(async (postId) => {
-        const response = await fetch(`/api/interactions/${postId}`)
-        if (response.ok) {
-          const interactions: Interaction[] = await response.json()
-          return { postId, interactions }
-        }
-        return { postId, interactions: [] }
-      })
-      
-      const interactionsResults = await Promise.all(interactionsPromises)
-      const interactionsMap = new Map(
-        interactionsResults.map((r) => [r.postId, r.interactions])
-      )
-      
-      // Update user interactions state
-      if (user) {
-        const userLikes = new Set<number | string>()
-        const userSaves = new Set<number | string>()
-        
-        interactionsMap.forEach((interactions, postId) => {
-          // Check for both like and save separately (user can have both)
-          const userLike = interactions.find((i) => i.user_id === user.id && i.interaction_type === 'like')
-          const userSave = interactions.find((i) => i.user_id === user.id && i.interaction_type === 'save')
-          
-          if (userLike) {
-            userLikes.add(postId)
-          }
-          if (userSave) {
-            userSaves.add(postId)
-          }
-        })
-        
-        queryClient.setQueryData(['user-interactions', user.id], {
-          likes: userLikes,
-          saves: userSaves,
-        })
-      }
-      
       // Transform API response to match expected format
+      // Interactions will be loaded lazily when cards are near viewport
       const items: FeedPost[] = data.articles.map((article: ArticleResponse) => {
         const dbPost = postMap.get(article.article_url)
-        const interactions = dbPost ? interactionsMap.get(dbPost.id) || [] : []
-        const likeCount = interactions.filter((i) => i.interaction_type === 'like').length
-        const saveCount = interactions.filter((i) => i.interaction_type === 'save').length
         
         return {
           id: dbPost?.id || article.id,
@@ -161,8 +119,8 @@ export const useFeed = () => {
           source: article.source || 'arXiv',
           category: article.category || 'General',
           created_at: article.created_at,
-          like_count: likeCount,
-          save_count: saveCount,
+          like_count: 0, // Will be loaded lazily when card is near viewport
+          save_count: 0, // Will be loaded lazily when card is near viewport
           view_count: dbPost?.view_count || 0,
         }
       })
