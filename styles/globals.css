@@ -2353,8 +2353,18 @@ h6,
 
 /* Mobile Responsive */
 @media (max-width: 768px) {
+  /* Make header wrap to accommodate searchbar on new line */
+  .bf-header__inner {
+    flex-wrap: wrap;
+  }
+  
+  /* Show searchbar on mobile - full width on new line */
   .bf-header__search {
-    display: none; /* Hide search on mobile or adjust as needed */
+    display: flex;
+    order: 3; /* Places searchbar after logo and actions */
+    flex-basis: 100%; /* Full width */
+    margin: 8px 0 0 0;
+    max-width: 100%;
   }
 
   .bf-history-item {
