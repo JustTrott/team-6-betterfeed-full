@@ -39,7 +39,7 @@ const ALPHAVANTAGE_NEWS_URL = 'https://www.alphavantage.co/query'
 const WORLD_NEWS_URL = 'https://api.worldnewsapi.com/search-news'
 const API_NINJAS_FACTS_URL = 'https://api.api-ninjas.com/v1/facts'
 
-const MAX_PER_SOURCE = 5
+const MAX_PER_SOURCE = 10
 
 function formatArticle(title: string, url: string, source: keyof typeof CATEGORY_BY_SOURCE): Article {
   return {
