@@ -24,18 +24,18 @@ export type ArticleResponse = {
 }
 
 const CATEGORY_BY_SOURCE: Record<string, string> = {
-  'arXiv': 'Education', // Academic papers - belongs in Education
-  'Hacker News': 'Technology & Computing', // IAB: IAB19
-  'ScienceDaily': 'Science', // IAB: IAB15
-  'NewsAPI Business': 'Business & Finance', // IAB: IAB13 (Changed from AlphaVantage)
-  'World News API': 'Government & Politics', // IAB: IAB11
-  'API Ninjas Facts': 'Education', // IAB: IAB5 (Education) / IAB21 (Reference)
+  'arXiv': 'Education',
+  'Hacker News': 'Technology & Computing',
+  'ScienceDaily': 'Science',
+  'NewsAPI Business': 'Business & Finance',
+  'World News API': 'Government & Politics',
+  'API Ninjas Facts': 'Education',
 }
 
 const HN_TOP_STORIES_URL = 'https://hacker-news.firebaseio.com/v0/topstories.json'
 const HN_ITEM_URL = (id: number) => `https://hacker-news.firebaseio.com/v0/item/${id}.json`
 const SCIENCE_DAILY_RSS = 'https://www.sciencedaily.com/rss/top/science.xml'
-const NEWSAPI_URL = 'https://newsapi.org/v2/top-headlines' // Changed from AlphaVantage
+const NEWSAPI_URL = 'https://newsapi.org/v2/top-headlines'
 const WORLD_NEWS_URL = 'https://api.worldnewsapi.com/search-news'
 const API_NINJAS_FACTS_URL = 'https://api.api-ninjas.com/v1/facts'
 
@@ -131,7 +131,6 @@ async function fetchScienceDaily(limit: number): Promise<Article[]> {
   }
 }
 
-// REPLACED: fetchAlphaVantage with fetchNewsAPI
 async function fetchNewsAPI(limit: number): Promise<Article[]> {
   const apiKey = process.env.NEWSAPI_KEY
   if (!apiKey) {
@@ -141,7 +140,7 @@ async function fetchNewsAPI(limit: number): Promise<Article[]> {
 
   try {
     const url = new URL(NEWSAPI_URL)
-    url.searchParams.set('country', 'us') // REQUIRED for more than 3 results on free tier
+    url.searchParams.set('country', 'us')
     url.searchParams.set('category', 'business')
     url.searchParams.set('pageSize', String(limit))
     url.searchParams.set('apiKey', apiKey)
@@ -155,7 +154,6 @@ async function fetchNewsAPI(limit: number): Promise<Article[]> {
     
     const payload = await response.json()
     
-    // Check for API errors
     if (payload.status === 'error') {
       console.error('[NewsAPI Business] API error:', payload.message)
       return []
@@ -224,7 +222,6 @@ async function fetchApiNinjasFacts(limit: number): Promise<Article[]> {
     })
     
     if (!response.ok) {
-      // Log the actual response for debugging
       const errorText = await response.text()
       console.error(`[API Ninjas Facts] ${response.status} error:`, errorText)
       throw new Error(`API Ninjas request failed: ${response.status}`)
@@ -240,13 +237,22 @@ async function fetchApiNinjasFacts(limit: number): Promise<Article[]> {
   }
 }
 
-// UPDATED: Changed fetchAlphaVantage to fetchNewsAPI
-async function fetchAllArticles(limit = MAX_PER_SOURCE): Promise<Article[]> {
+// Fisher-Yates shuffle algorithm for randomizing array order
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled
+}
+
+async function fetchAllArticles(limit = MAX_PER_SOURCE, shouldShuffle = true): Promise<Article[]> {
   const fetchers = [
     fetchArxiv(limit),
     fetchHackerNews(limit),
     fetchScienceDaily(limit),
-    fetchNewsAPI(limit), // CHANGED from fetchAlphaVantage(limit)
+    fetchNewsAPI(limit),
     fetchWorldNews(limit),
     fetchApiNinjasFacts(limit),
   ]
@@ -260,7 +266,7 @@ async function fetchAllArticles(limit = MAX_PER_SOURCE): Promise<Article[]> {
     }
   }
 
-  return articles
+  return shouldShuffle ? shuffleArray(articles) : articles
 }
 
 function stripHtml(html: string): string {
@@ -277,106 +283,93 @@ async function fetchArticleContent(url: string): Promise<string | null> {
     if (!res.ok) throw new Error(`Content fetch failed ${res.status}`)
     const html = await res.text()
     const text = stripHtml(html)
-    return text ? text.substring(0, 8000) : null
+    return text ? text.slice(0, 2000) : null
   } catch (error) {
-    console.warn(`[content] failed for ${url}:`, error)
+    console.error('[fetchArticleContent] failed:', error)
     return null
   }
 }
 
 async function enrichWithContentAndSummary(articles: Article[], generateSummaries: boolean): Promise<Article[]> {
-  // Skip full content fetching - it's slow and often fails
-  // We'll only generate summaries for new articles in persistArticles
-  return articles.map(article => ({ ...article, content: null }))
-}
+  if (!generateSummaries) return articles
 
-async function ensureSystemUserId(): Promise<string | null> {
-  if (!supabaseAdmin) return null
+  const enriched = await Promise.allSettled(
+    articles.map(async (article) => {
+      const content = await fetchArticleContent(article.url)
+      if (!content) return { ...article, content: null }
 
-  const { data: existingUser, error: fetchError } = await supabaseAdmin
-    .from('profiles')
-    .select('id')
-    .eq('email', 'system@betterfeed.local')
-    .maybeSingle()
-
-  if (existingUser) return existingUser.id
-  if (fetchError && fetchError.code !== 'PGRST116') {
-    console.warn('Error fetching system user:', fetchError)
-  }
-
-  const { data: newUser, error: insertError } = await supabaseAdmin
-    .from('profiles')
-    .insert({
-      email: 'system@betterfeed.local',
-      username: 'system',
+      const summary = await generateArticleSummary(content)
+      return { ...article, content: summary }
     })
-    .select('id')
-    .single()
+  )
 
-  if (insertError || !newUser) {
-    console.error('Failed to create system user:', insertError)
-    return null
-  }
-
-  return newUser.id
+  return enriched
+    .filter((r) => r.status === 'fulfilled')
+    .map((r) => (r as PromiseFulfilledResult<Article>).value)
 }
 
 async function persistArticles(articles: Article[]): Promise<Article[]> {
-  if (!supabaseAdmin || articles.length === 0) return articles
-
-  const systemUserId = await ensureSystemUserId()
-  if (!systemUserId) return articles
-
-  // OPTIMIZATION 1: Batch check all article URLs at once instead of one-by-one
-  const articleUrls = articles.map(a => a.url)
-  const { data: existingPosts, error: fetchError } = await supabaseAdmin
-    .from('posts')
-    .select('*')
-    .in('article_url', articleUrls)
-
-  if (fetchError) {
-    console.warn('Error checking existing posts:', fetchError)
+  // Check if supabaseAdmin is available
+  if (!supabaseAdmin) {
+    console.error('[Persist] Supabase admin client not available - check SUPABASE_SERVICE_KEY')
     return articles
   }
 
-  // Create a map for quick lookup
-  const existingMap = new Map(existingPosts?.map(p => [p.article_url, p]) || [])
-  
-  const stored: Article[] = []
-  const newArticles: Article[] = []
+  // Get system user ID for storing shared articles
+  const { data: systemProfile, error: systemError } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('email', 'system@betterfeed.local')
+    .single()
 
-  // Separate existing from new articles
+  if (systemError || !systemProfile?.id) {
+    console.error('[Persist] System user not found:', systemError?.message)
+    return articles
+  }
+
+  const systemUserId = systemProfile.id
+  const stored: Article[] = []
+
+  // OPTIMIZATION 1: Bulk check existing posts by article_url
+  const articleUrls = articles.map(a => a.url).filter(Boolean)
+  const { data: existingPosts, error: existingError } = await supabaseAdmin
+    .from('posts')
+    .select('id, article_url, title, content')
+    .in('article_url', articleUrls)
+
+  if (existingError) {
+    console.error('[Persist] Error fetching existing posts:', existingError.message)
+  }
+
+  const existingUrlMap = new Map(
+    (existingPosts || []).map(post => [post.article_url, post])
+  )
+
+  // OPTIMIZATION 2: Separate existing and new articles
+  const newArticles: Article[] = []
+  
   for (const article of articles) {
-    const existing = existingMap.get(article.url)
-    
+    const existing = existingUrlMap.get(article.url)
     if (existing) {
-      // Article exists - just return it with existing content
       stored.push({
         ...article,
         id: existing.id,
-        title: existing.title || article.title,
         content: existing.content,
-        url: article.url,
       })
     } else {
-      // New article - needs summary generation
       newArticles.push(article)
     }
   }
 
-  // OPTIMIZATION 2: Only generate summaries for NEW articles
+  // Generate summaries for new articles only
   if (newArticles.length > 0) {
-    console.log(`[Persist] Generating summaries for ${newArticles.length} new articles`)
-    
-    // Generate summaries in parallel (limited concurrency)
     const summaryResults = await Promise.allSettled(
       newArticles.map(async (article) => {
-        try {
-          const summary = await generateArticleSummary(article.title, null, null)
-          return { ...article, content: summary }
-        } catch (error) {
-          console.error(`[summary] failed for ${article.title}:`, error)
-          return { ...article, content: `${article.title} - Read more to learn about this topic.` }
+        if (article.content) return article
+        
+        return {
+          ...article,
+          content: `This is an educational article from ${article.source}. Visit the link to learn about this topic.`
         }
       })
     )
@@ -402,11 +395,9 @@ async function persistArticles(articles: Article[]): Promise<Article[]> {
         .select('*')
 
       if (insertError) {
-        console.error('Batch insert error:', insertError)
-        // Fall back to returning articles without IDs
+        console.error('[Persist] Batch insert error:', insertError.message)
         stored.push(...articlesWithSummaries)
       } else if (insertedPosts) {
-        // Add inserted posts with their new IDs
         insertedPosts.forEach((post, index) => {
           stored.push({
             ...articlesWithSummaries[index],
@@ -453,12 +444,11 @@ export async function GET(req: NextRequest) {
     Math.max(1, Number.parseInt(req.nextUrl.searchParams.get('limit') || String(MAX_PER_SOURCE), 10))
   )
 
-  const articles = await fetchAllArticles(limit)
+  const articles = await fetchAllArticles(limit, true)
   const enriched = await enrichWithContentAndSummary(articles, true)
   const stored = await persistArticles(enriched)
   const response = toArticleResponse(stored)
   
-  // Add cache headers
   return NextResponse.json(
     { articles: response, meta: buildMeta(response.length) },
     {
@@ -475,12 +465,11 @@ export async function POST(req: NextRequest) {
     const limit = Math.min(MAX_PER_SOURCE, Math.max(1, Number(body.limit) || MAX_PER_SOURCE))
     const generateSummaries = body.generateSummaries !== false
 
-    const articles = await fetchAllArticles(limit)
+    const articles = await fetchAllArticles(limit, true)
     const enriched = await enrichWithContentAndSummary(articles, generateSummaries)
     const stored = await persistArticles(enriched)
     const response = toArticleResponse(stored)
     
-    // Add cache headers
     return NextResponse.json(
       { articles: response, meta: buildMeta(response.length) },
       {
