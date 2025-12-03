@@ -54,6 +54,7 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
   const inputRef = useRef<HTMLInputElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
   const panelTitleId = useId()
+  const restoreScrollQueuedRef = useRef(false)
 
   // Swipe gesture state
   const touchStartRef = useRef<number | null>(null)
@@ -97,8 +98,11 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
   useEffect(() => {
     if (!open) return undefined
 
-    // Save current scroll position
-    scrollPositionRef.current = window.scrollY || window.pageYOffset
+    // Save current scroll position (account for visual viewport shifts)
+    const baseScroll = window.scrollY || window.pageYOffset
+    const viewportOffset = window.visualViewport?.offsetTop ?? 0
+    scrollPositionRef.current = baseScroll + viewportOffset
+    restoreScrollQueuedRef.current = false
 
     // Lock body scroll when panel is open
     const originalStyle = window.getComputedStyle(document.body).overflow
@@ -107,6 +111,7 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     const originalWidth = document.body.style.width
     const originalOverscroll = window.getComputedStyle(document.documentElement).overscrollBehaviorY
     const originalBodyOverscroll = window.getComputedStyle(document.body).overscrollBehaviorY
+    const originalHtmlOverflow = document.documentElement.style.overflow
     
     document.body.style.overflow = 'hidden'
     document.body.style.position = 'fixed'
@@ -114,6 +119,7 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     document.body.style.width = '100%'
     document.documentElement.style.overscrollBehaviorY = 'contain'
     document.body.style.overscrollBehaviorY = 'contain'
+    document.documentElement.style.overflow = 'hidden'
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -128,7 +134,7 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
       
       // Capture latest offset before restoring styles (supports keyboard viewport shifts)
       const topValue = document.body.style.top
-      const savedScrollPosition = topValue ? Math.abs(parseInt(topValue.replace('px', ''), 10)) : scrollPositionRef.current
+      const savedScrollPosition = topValue ? Math.abs(parseFloat(topValue.replace('px', ''))) : scrollPositionRef.current
       
       // Restore body styles
       document.body.style.overflow = originalStyle
@@ -137,14 +143,19 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
       document.body.style.width = originalWidth
       document.documentElement.style.overscrollBehaviorY = originalOverscroll
       document.body.style.overscrollBehaviorY = originalBodyOverscroll
+      document.documentElement.style.overflow = originalHtmlOverflow
       
       // Restore scroll position after styles are applied
-      // Use double requestAnimationFrame to ensure DOM has fully updated
-      requestAnimationFrame(() => {
+      if (!restoreScrollQueuedRef.current) {
+        restoreScrollQueuedRef.current = true
+        // Double RAF + timeout to survive keyboard closing delays
         requestAnimationFrame(() => {
-          window.scrollTo(0, savedScrollPosition)
+          requestAnimationFrame(() => {
+            window.scrollTo(0, savedScrollPosition)
+            setTimeout(() => window.scrollTo(0, savedScrollPosition), 50)
+          })
         })
-      })
+      }
     }
   }, [open, onClose])
 
@@ -230,7 +241,7 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     if (touchStartRef.current) {
       // For closing, we want to detect right swipes (positive distance)
       const distance = e.touches[0].clientX - touchStartRef.current
-      setSwipeOffset(distance > 0 ? distance : 0)
+      setSwipeOffset(distance)
     }
   }
 
@@ -241,9 +252,9 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     }
 
     const distance = touchEndRef.current - touchStartRef.current
-    const isRightSwipe = distance > minSwipeDistance
+    const isHorizontalSwipe = Math.abs(distance) > minSwipeDistance
 
-    if (isRightSwipe) {
+    if (isHorizontalSwipe) {
       onClose()
     }
     
@@ -262,7 +273,7 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     if (touchStartRef.current) {
       touchEndRef.current = e.clientX
       const distance = e.clientX - touchStartRef.current
-      setSwipeOffset(distance > 0 ? distance : 0)
+      setSwipeOffset(distance)
     }
   }
 
@@ -275,9 +286,9 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     }
 
     const distance = touchEndRef.current - touchStartRef.current
-    const isRightSwipe = distance > minSwipeDistance
+    const isHorizontalSwipe = Math.abs(distance) > minSwipeDistance
 
-    if (isRightSwipe) {
+    if (isHorizontalSwipe) {
       onClose()
     }
 
