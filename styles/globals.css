@@ -2356,14 +2356,53 @@ h6,
   /* Make header wrap to accommodate searchbar on new line */
   .bf-header__inner {
     flex-wrap: wrap;
+    align-items: center;
   }
   
-  /* Show searchbar on mobile - full width on new line */
+  /* Logo stays at flex-start with auto width */
+  .bf-header__logo {
+    flex: 0 1 auto;
+    order: 1;
+  }
+  
+  /* Make logo more compact on mobile */
+  .bf-header__logo-badge {
+    width: 44px;
+    height: 44px;
+  }
+  
+  .bf-header__logo-img {
+    width: 44px;
+    height: 44px;
+  }
+  
+  .bf-header__logo-title {
+    font-size: 1.1rem;
+  }
+  
+  .bf-header__logo-sub {
+    font-size: 0.6rem;
+  }
+  
+  /* Actions (sign in/profile) stay on same line, pushed to the right */
+  .bf-header__actions {
+    flex: 0 0 auto;
+    order: 2;
+    margin-left: auto;
+    gap: 8px;
+  }
+  
+  /* Hide desktop nav on mobile */
+  .bf-header__nav {
+    display: none;
+  }
+  
+  /* Searchbar on full-width second line */
   .bf-header__search {
     display: flex;
-    order: 3; /* Places searchbar after logo and actions */
-    flex-basis: 100%; /* Full width */
-    margin: 8px 0 0 0;
+    order: 3;
+    flex-basis: 100%;
+    margin: 12px 0 0 0;
     max-width: 100%;
   }
 
