@@ -105,11 +105,15 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     const originalPosition = document.body.style.position
     const originalTop = document.body.style.top
     const originalWidth = document.body.style.width
+    const originalOverscroll = window.getComputedStyle(document.documentElement).overscrollBehaviorY
+    const originalBodyOverscroll = window.getComputedStyle(document.body).overscrollBehaviorY
     
     document.body.style.overflow = 'hidden'
     document.body.style.position = 'fixed'
     document.body.style.top = `-${scrollPositionRef.current}px`
     document.body.style.width = '100%'
+    document.documentElement.style.overscrollBehaviorY = 'contain'
+    document.body.style.overscrollBehaviorY = 'contain'
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -122,15 +126,17 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
       
-      // Save scroll position one more time before restoring styles
-      // This ensures we have the correct position even if something changed
-      const savedScrollPosition = scrollPositionRef.current
+      // Capture latest offset before restoring styles (supports keyboard viewport shifts)
+      const topValue = document.body.style.top
+      const savedScrollPosition = topValue ? Math.abs(parseInt(topValue.replace('px', ''), 10)) : scrollPositionRef.current
       
       // Restore body styles
       document.body.style.overflow = originalStyle
       document.body.style.position = originalPosition
       document.body.style.top = originalTop
       document.body.style.width = originalWidth
+      document.documentElement.style.overscrollBehaviorY = originalOverscroll
+      document.body.style.overscrollBehaviorY = originalBodyOverscroll
       
       // Restore scroll position after styles are applied
       // Use double requestAnimationFrame to ensure DOM has fully updated
