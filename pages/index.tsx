@@ -13,8 +13,7 @@ const FEED_CATEGORIES = [
   'Technology & Computing',
   'Science',
   'Business & Finance',
-  'Government & Politics',
-  'Education',
+  'Academia & Research',
 ]
 
 export default function FeedPage() {

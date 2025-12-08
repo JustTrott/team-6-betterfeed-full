@@ -719,6 +719,7 @@ h6,
   scroll-snap-type: x proximity;
   scroll-padding: 0 16px;
   -webkit-overflow-scrolling: touch;
+  text-align: center; /* Center the list */
 }
 
 .bf-category-tabs::-webkit-scrollbar {
@@ -726,12 +727,13 @@ h6,
 }
 
 .bf-category-tabs__list {
-  display: inline-flex;
+  display: inline-flex; /* Keep inline-flex so it only takes up the width it needs */
   align-items: center;
   padding: 0;
   margin: 0;
   list-style: none;
   gap: 10px;
+  justify-content: center; /* Center items within the list */
 }
 
 .bf-category-tabs__item {

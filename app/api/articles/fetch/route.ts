@@ -28,16 +28,12 @@ const CATEGORY_BY_SOURCE: Record<string, string> = {
   'Hacker News': 'Technology & Computing',
   'ScienceDaily': 'Science',
   'NewsAPI Business': 'Business & Finance',
-  'World News API': 'Government & Politics',
-  'API Ninjas Facts': 'Education',
 }
 
 const HN_TOP_STORIES_URL = 'https://hacker-news.firebaseio.com/v0/topstories.json'
 const HN_ITEM_URL = (id: number) => `https://hacker-news.firebaseio.com/v0/item/${id}.json`
 const SCIENCE_DAILY_RSS = 'https://www.sciencedaily.com/rss/top/science.xml'
 const NEWSAPI_URL = 'https://newsapi.org/v2/top-headlines'
-const WORLD_NEWS_URL = 'https://api.worldnewsapi.com/search-news'
-const API_NINJAS_FACTS_URL = 'https://api.api-ninjas.com/v1/facts'
 
 const MAX_PER_SOURCE = 10
 
@@ -178,65 +174,6 @@ async function fetchNewsAPI(limit: number): Promise<Article[]> {
   }
 }
 
-async function fetchWorldNews(limit: number): Promise<Article[]> {
-  const apiKey = process.env.WORLDNEWS_API_KEY
-  if (!apiKey) {
-    console.warn('[World News API] WORLDNEWS_API_KEY is not set')
-    return []
-  }
-
-  try {
-    const url = new URL(WORLD_NEWS_URL)
-    url.searchParams.set('category', 'politics')
-    url.searchParams.set('language', 'en')
-    url.searchParams.set('number', String(limit))
-    url.searchParams.set('api-key', apiKey)
-
-    const response = await fetch(url.toString(), { cache: 'no-store' })
-    if (!response.ok) throw new Error(`World News request failed: ${response.status}`)
-    const payload = await response.json()
-    const newsItems = (payload?.news || payload?.articles || []) as Array<{ title?: string; url?: string }>
-    return newsItems.slice(0, limit).map((item) =>
-      formatArticle(item.title || 'World News', item.url || '', 'World News API')
-    )
-  } catch (error) {
-    console.error('[World News API] fetch failed:', error)
-    return []
-  }
-}
-
-async function fetchApiNinjasFacts(limit: number): Promise<Article[]> {
-  const apiKey = process.env.API_NINJAS_API_KEY || process.env.API_NINJAS_KEY
-  if (!apiKey) {
-    console.warn('[API Ninjas Facts] API_NINJAS_API_KEY is not set')
-    return []
-  }
-
-  try {
-    const url = new URL(API_NINJAS_FACTS_URL)
-    url.searchParams.set('limit', String(limit))
-
-    const response = await fetch(url.toString(), {
-      cache: 'no-store',
-      headers: { 'X-Api-Key': apiKey },
-    })
-    
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`[API Ninjas Facts] ${response.status} error:`, errorText)
-      throw new Error(`API Ninjas request failed: ${response.status}`)
-    }
-    
-    const data = (await response.json()) as Array<{ fact?: string }>
-    return data.slice(0, limit).map((item) =>
-      formatArticle(item.fact || 'Fact', API_NINJAS_FACTS_URL, 'API Ninjas Facts')
-    )
-  } catch (error) {
-    console.error('[API Ninjas Facts] fetch failed:', error)
-    return []
-  }
-}
-
 // Fisher-Yates shuffle algorithm for randomizing array order
 function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array]
@@ -253,8 +190,6 @@ async function fetchAllArticles(limit = MAX_PER_SOURCE, shouldShuffle = true): P
     fetchHackerNews(limit),
     fetchScienceDaily(limit),
     fetchNewsAPI(limit),
-    fetchWorldNews(limit),
-    fetchApiNinjasFacts(limit),
   ]
 
   const results = await Promise.allSettled(fetchers)
