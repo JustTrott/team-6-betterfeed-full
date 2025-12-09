@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/lib/db/client";
-import { handleApiError, ApiError } from "@/lib/api/errors";
+import { supabase, supabaseAdmin } from "@/lib/db/client";
+import { ApiError } from "@/lib/api/errors";
 import { Post } from "@/lib/db/schema";
 
 /**
@@ -19,7 +19,7 @@ async function incrementView(req: NextApiRequest, res: NextApiResponse) {
       throw new ApiError(400, "Invalid post ID");
     }
 
-    // Get current post
+    // Check if post exists first
     const { data: currentPost, error: fetchError } = await supabase
       .from("posts")
       .select("view_count")
@@ -27,11 +27,16 @@ async function incrementView(req: NextApiRequest, res: NextApiResponse) {
       .single();
 
     if (fetchError || !currentPost) {
-      throw new ApiError(404, "Post not found");
+      // Post doesn't exist in database - return 404 gracefully
+      // This is expected for articles that haven't been persisted yet
+      return res.status(404).json({ error: "Post not found in database" });
     }
 
-    // Increment view count
-    const { data: updatedPost, error: updateError } = await supabase
+    // Use admin client to bypass RLS for view_count updates
+    // Views should be trackable by anyone, including anonymous users
+    const adminClient = supabaseAdmin || supabase;
+    
+    const { data: updatedPost, error: updateError } = await adminClient
       .from("posts")
       .update({ view_count: currentPost.view_count + 1 })
       .eq("id", postId)
@@ -39,12 +44,23 @@ async function incrementView(req: NextApiRequest, res: NextApiResponse) {
       .single();
 
     if (updateError || !updatedPost) {
-      throw new ApiError(500, `Error incrementing view count: ${updateError?.message || "Unknown error"}`);
+      // Silently fail - view tracking is not critical
+      console.warn(`Failed to increment view count for post ${postId}:`, updateError?.message);
+      return res.status(200).json({ 
+        id: postId, 
+        view_count: currentPost.view_count,
+        message: "View count not updated" 
+      });
     }
 
     return res.status(200).json(updatedPost as Post);
   } catch (error) {
-    return handleApiError(error, res);
+    // Don't throw errors for view tracking - it's not critical
+    console.error('View tracking error:', error);
+    return res.status(200).json({ 
+      error: "View tracking failed", 
+      message: error instanceof Error ? error.message : "Unknown error" 
+    });
   }
 }
 

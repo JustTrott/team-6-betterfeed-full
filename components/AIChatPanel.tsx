@@ -208,6 +208,7 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
       body: {
         post,
         style: selectedStyle,
+        enableSearch: true, // Enable web search by default
       },
     })
     setInput('')

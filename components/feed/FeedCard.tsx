@@ -147,18 +147,25 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen, categ
                 if (prev) return prev
                 
                 // Track view via API if post has a numeric ID (exists in database)
+                // Only track views for posts that exist in the backend database
                 if (typeof post.id === 'number') {
                   fetch(`/api/posts/${post.id}/view`, {
                     method: 'POST',
                   })
                     .then((response) => {
+                      // Only update cache if response is successful and has view_count
                       if (response.ok) {
                         return response.json()
+                      }
+                      // 404 means post doesn't exist in database - this is fine, don't track
+                      if (response.status === 404) {
+                        return null
                       }
                       return null
                     })
                     .then((updatedPost) => {
-                      if (updatedPost) {
+                      // Only update cache if we got a valid response with view_count
+                      if (updatedPost && typeof updatedPost.view_count === 'number') {
                         // Update the React Query cache to persist the change
                         queryClient.setQueryData<PostsQueryData>(['posts', category], (old) => {
                           if (!old) return old
@@ -178,7 +185,11 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen, categ
                       }
                     })
                     .catch((error) => {
-                      console.error('Failed to track view:', error)
+                      // Silently fail - view tracking is not critical
+                      // Only log in development
+                      if (process.env.NODE_ENV === 'development') {
+                        console.warn('View tracking failed (non-critical):', error)
+                      }
                     })
                 }
                 
