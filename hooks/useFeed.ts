@@ -253,7 +253,7 @@ export const useFeed = () => {
               pages: old.pages.map((page) => ({
                 ...page,
                 items: page.items.map((post) =>
-                  post.id === postId
+                  String(post.id) === String(postId)
                     ? {
                         ...post,
                         like_count: likeCount,
@@ -307,7 +307,7 @@ export const useFeed = () => {
               pages: old.pages.map((page) => ({
                 ...page,
                 items: page.items.map((post) =>
-                  post.id === postId
+                  String(post.id) === String(postId)
                     ? {
                         ...post,
                         like_count: likeCount,
