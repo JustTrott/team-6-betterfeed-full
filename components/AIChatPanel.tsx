@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { PaperPlaneIcon } from '@radix-ui/react-icons'
-import { MessageSquareIcon, ChevronUp } from 'lucide-react'
+import { MessageSquareIcon, ChevronUp, ExternalLink, Globe } from 'lucide-react'
 import { Input } from './ui/input'
 import { Button } from './ui/button'
 import { StyleSelector } from './StyleSelector'
@@ -54,14 +54,12 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
   const inputRef = useRef<HTMLInputElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
   const panelTitleId = useId()
-  const restoreScrollQueuedRef = useRef(false)
 
   // Swipe gesture state
   const touchStartRef = useRef<number | null>(null)
   const touchEndRef = useRef<number | null>(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
   const minSwipeDistance = 50 // Minimum distance for a swipe to close
-  const scrollPositionRef = useRef<number>(0) // Store scroll position
 
   const activePostId = post?.id ?? null
 
@@ -98,27 +96,9 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
   useEffect(() => {
     if (!open) return undefined
 
-    // FIXED: Save scroll position BEFORE any body modifications
-    const savedScrollPosition = window.scrollY || window.pageYOffset
-    scrollPositionRef.current = savedScrollPosition
-    restoreScrollQueuedRef.current = false
-
-    // Lock body scroll when panel is open
-    const originalStyle = window.getComputedStyle(document.body).overflow
-    const originalPosition = document.body.style.position
-    const originalTop = document.body.style.top
-    const originalWidth = document.body.style.width
-    const originalOverscroll = window.getComputedStyle(document.documentElement).overscrollBehaviorY
-    const originalBodyOverscroll = window.getComputedStyle(document.body).overscrollBehaviorY
-    const originalHtmlOverflow = document.documentElement.style.overflow
-    
+    // Lock body scroll when panel is open (simple overflow hidden approach)
+    const originalOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    document.body.style.position = 'fixed'
-    document.body.style.top = `-${savedScrollPosition}px`
-    document.body.style.width = '100%'
-    document.documentElement.style.overscrollBehaviorY = 'contain'
-    document.body.style.overscrollBehaviorY = 'contain'
-    document.documentElement.style.overflow = 'hidden'
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -130,45 +110,22 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
-      
-      // FIXED: Use the originally saved position (don't re-read body.style.top)
-      const positionToRestore = savedScrollPosition
-      
-      // Restore body styles
-      document.body.style.overflow = originalStyle
-      document.body.style.position = originalPosition
-      document.body.style.top = originalTop
-      document.body.style.width = originalWidth
-      document.documentElement.style.overscrollBehaviorY = originalOverscroll
-      document.body.style.overscrollBehaviorY = originalBodyOverscroll
-      document.documentElement.style.overflow = originalHtmlOverflow
-      
-      // Restore scroll position
-      if (!restoreScrollQueuedRef.current) {
-        restoreScrollQueuedRef.current = true
-        
-        // Immediate restoration
-        window.scrollTo(0, positionToRestore)
-        
-        // Backup restoration in RAF
-        requestAnimationFrame(() => {
-          window.scrollTo(0, positionToRestore)
-        })
-      }
+      document.body.style.overflow = originalOverflow
     }
   }, [open, onClose])
 
   useEffect(() => {
     if (!open) {
       if (previousFocusRef.current && previousFocusRef.current instanceof HTMLElement) {
-        previousFocusRef.current.focus()
+        // Use preventScroll to avoid scrolling when restoring focus
+        previousFocusRef.current.focus({ preventScroll: true })
       }
       return
     }
 
     previousFocusRef.current = document.activeElement as HTMLElement
     const focusTimer = window.setTimeout(() => {
-      inputRef.current?.focus()
+      inputRef.current?.focus({ preventScroll: true })
     }, 80)
 
     return () => window.clearTimeout(focusTimer)
@@ -242,10 +199,15 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
       // For closing, we want to detect right swipes (positive distance)
       const distance = e.touches[0].clientX - touchStartRef.current
       setSwipeOffset(distance)
+      
+      // Prevent default scroll behavior when swiping horizontally
+      if (Math.abs(distance) > 10) {
+        e.preventDefault()
+      }
     }
   }
 
-  const onTouchEnd = () => {
+  const onTouchEnd = (e: React.TouchEvent) => {
     if (!touchStartRef.current || !touchEndRef.current) {
       setSwipeOffset(0)
       return
@@ -255,6 +217,8 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     const isHorizontalSwipe = Math.abs(distance) > minSwipeDistance
 
     if (isHorizontalSwipe) {
+      // Prevent any default behavior that might cause scroll
+      e.preventDefault()
       onClose()
     }
     
@@ -334,7 +298,7 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
             onTouchMove={onTouchMove}
             onTouchEnd={(e) => {
               touchEndRef.current = e.changedTouches[0].clientX
-              onTouchEnd()
+              onTouchEnd(e)
             }}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
@@ -436,12 +400,51 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
                           .map((part) => (part as { text: string }).text)
                           .join('')
 
+                        // Extract sources from message parts (source-url type from Google Search)
+                        type SourceInfo = { id: string; url: string; title: string | undefined }
+                        const sources: SourceInfo[] = message.parts
+                          .filter((part) => part.type === 'source-url')
+                          .map((part) => {
+                            // Cast to the source-url structure
+                            const sourcePart = part as unknown as { sourceId: string; url: string; title?: string }
+                            return {
+                              id: sourcePart.sourceId || '',
+                              url: sourcePart.url || '',
+                              title: sourcePart.title,
+                            }
+                          })
+                          .filter((s) => !!s.url)
+
                         return (
                           <Message key={message.id} from={message.role === 'assistant' ? 'assistant' : 'user'}>
                             <MessageContent
                               content={textContent}
                               markdown={message.role === 'assistant'}
                             />
+                            {sources.length > 0 && message.role === 'assistant' && (
+                              <div className="bf-chat-sources">
+                                <div className="bf-chat-sources__header">
+                                  <Globe className="bf-icon-sm" />
+                                  <span>Sources</span>
+                                </div>
+                                <div className="bf-chat-sources__list">
+                                  {sources.map((source, idx) => (
+                                    <a
+                                      key={source.id || idx}
+                                      href={source.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="bf-chat-sources__item"
+                                    >
+                                      <span className="bf-chat-sources__title">
+                                        {source.title || new URL(source.url).hostname}
+                                      </span>
+                                      <ExternalLink className="bf-icon-xs" />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </Message>
                         )
                       })}

@@ -59,7 +59,9 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen, categ
   const cardRef = useRef<HTMLElement>(null)
   
   // Lazy load interactions when card is near viewport
-  const { data: interactionsData } = useQuery({
+  // This is ONLY used to sync user's like/save state, NOT for counts
+  // Counts come from post.like_count/save_count which are optimistically updated
+  useQuery({
     queryKey: ['interactions', post.id],
     queryFn: async () => {
       if (typeof post.id !== 'number') return []
@@ -91,7 +93,8 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen, categ
         })
       }
       
-      // Update posts cache with interaction counts
+      // Update posts cache with interaction counts (initial load only)
+      // After this, counts are managed by optimistic updates in useFeed
       const likeCount = interactions.filter((i) => i.interaction_type === 'like').length
       const saveCount = interactions.filter((i) => i.interaction_type === 'save').length
       
@@ -116,13 +119,9 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen, categ
     staleTime: 2 * 60 * 1000, // 2 minutes
   })
   
-  // Calculate interaction counts from loaded data or fallback to post counts
-  const likeCount = interactionsData
-    ? interactionsData.filter((i) => i.interaction_type === 'like').length
-    : post.like_count ?? 0
-  const saveCount = interactionsData
-    ? interactionsData.filter((i) => i.interaction_type === 'save').length
-    : post.save_count ?? 0
+  // Use post counts directly - these are optimistically updated by useFeed
+  const likeCount = post.like_count ?? 0
+  const saveCount = post.save_count ?? 0
 
   const minSwipeDistance = 50 // Minimum distance for a swipe
 

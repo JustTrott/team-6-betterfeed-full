@@ -281,9 +281,10 @@ The application includes an AI-powered chat assistant that provides contextual a
 
 ### AI Chat
 - `POST /api/chat` - Generate AI response for article discussion
-  - Body: `{ messages: UIMessage[], post: Post, style: 'professor' | 'debater' }`
+  - Body: `{ messages: UIMessage[], post: Post, style: 'professor' | 'debater', enableSearch?: boolean }`
   - Returns: Server-Sent Events (SSE) stream with UI message format
   - Note: Uses Google Gemini API with server-side API key (App Router route handler)
+  - **Google Search Grounding**: When `enableSearch: true`, the AI has access to Google Search to provide current information. Sources are returned as `source-url` parts in the message and displayed in the chat UI.
 
 ### Articles
 - `POST /api/articles/fetch` - Fetch scientific preprints from arXiv API with AI-generated summaries
