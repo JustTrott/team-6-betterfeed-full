@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { PaperPlaneIcon } from '@radix-ui/react-icons'
-import { MessageSquareIcon, ChevronUp } from 'lucide-react'
+import { MessageSquareIcon, ChevronUp, ChevronDown } from 'lucide-react'
 import { Input } from './ui/input'
 import { Button } from './ui/button'
 import { StyleSelector } from './StyleSelector'
@@ -392,21 +392,32 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
             >
               <StyleSelector options={STYLE_OPTIONS} selected={selectedStyle} onSelect={handleStyleSelect} />
             </motion.section>
-            {!isHeaderCollapsed && (
-              <div className="bf-chat-slideover__footer">
+            <div className="bf-chat-slideover__footer">
+              <button
+                type="button"
+                onClick={toggleHeader}
+                className="bf-chat-slideover__collapse-button"
+                aria-expanded={!isHeaderCollapsed}
+                aria-label={isHeaderCollapsed ? "Show AI mode options" : "Hide AI mode options"}
+              >
+                {isHeaderCollapsed ? (
+                  <ChevronDown className="bf-icon-sm" />
+                ) : (
+                  <ChevronUp className="bf-icon-sm" />
+                )}
+              </button>
+            </div>
+            <p className="bf-chat-slideover__style-hint">
+              Currently speaking with a <strong>{selectedStyleMeta.label}</strong> tone.
+              {isHeaderCollapsed && (
                 <button
                   type="button"
                   onClick={toggleHeader}
-                  className="bf-chat-slideover__collapse-button"
-                  aria-expanded={!isHeaderCollapsed}
-                  aria-label="Collapse header"
+                  className="bf-chat-slideover__style-change"
                 >
-                  <ChevronUp className="bf-icon-sm" />
+                  Change
                 </button>
-              </div>
-            )}
-            <p className="bf-chat-slideover__style-hint">
-              Currently speaking with a <strong>{selectedStyleMeta.label}</strong> tone.
+              )}
             </p>
 
             <section className="bf-chat-slideover__body">

@@ -517,7 +517,7 @@ For complete SQL schema, see `sql/schema.sql`.
 
 **Veyd:**
 
-**Kyle:**
+**Kyle:** Fixed bug where the background gradient reset after each article. Fixed bug in category bar where the categories were overlapping. Redesigned category bar and added horizontal scroll. Give user more intuitive options when switching AI modes.
 
 ## Project Structure
 
