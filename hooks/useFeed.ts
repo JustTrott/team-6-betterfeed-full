@@ -162,7 +162,7 @@ export const useFeed = () => {
     // Get current post to get counts
     const currentPost = queryClient.getQueryData<PostsQueryData>(['posts', category])
       ?.pages.flatMap((p) => p.items)
-      .find((p) => p.id === postId)
+      .find((p) => String(p.id) === String(postId))
 
     if (!currentPost) {
       pushToast({ title: 'Error', description: 'Post not found', variant: 'error' })
@@ -172,7 +172,7 @@ export const useFeed = () => {
     const targetSet = type === 'like' ? interactions.likes : interactions.saves
     const isActive = targetSet.has(postId)
 
-    // Optimistic update
+    // Optimistic update for interactions and counts
     queryClient.setQueryData(['user-interactions', user.id], (old: InteractionState) => {
       const newInteractions = createInteractionState()
       old.likes.forEach((id) => newInteractions.likes.add(id))
@@ -186,7 +186,6 @@ export const useFeed = () => {
       return newInteractions
     })
 
-    // Update posts cache optimistically
     queryClient.setQueryData<PostsQueryData>(['posts', category], (old) => {
       if (!old) return old
       return {
@@ -194,12 +193,14 @@ export const useFeed = () => {
         pages: old.pages.map((page) => ({
           ...page,
           items: page.items.map((post) => {
-            if (post.id !== postId) return post
+            if (String(post.id) !== String(postId)) return post
             const delta = isActive ? -1 : 1
+            const likeCount = post.like_count ?? 0
+            const saveCount = post.save_count ?? 0
             if (type === 'like') {
-              return { ...post, like_count: Math.max(0, post.like_count + delta) }
+              return { ...post, like_count: Math.max(0, likeCount + delta) }
             }
-            return { ...post, save_count: Math.max(0, post.save_count + delta) }
+            return { ...post, save_count: Math.max(0, saveCount + delta) }
           }),
         })),
       }
