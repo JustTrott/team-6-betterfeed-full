@@ -447,14 +447,14 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
               </Conversation>
             </section>
 
-            <form onSubmit={onSubmit} className="bf-chat-slideover__input-form">
+            <form onSubmit={onSubmit} className="bf-chat-slideover__composer">
               <Input
                 ref={inputRef}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask a question or request a summary…"
+                placeholder="Ask for a takeaway, compare viewpoints, or stress-test the point…"
                 className="bf-chat-slideover__input"
                 disabled={status !== 'ready'}
               />
@@ -463,7 +463,7 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
                 disabled={!input.trim() || status !== 'ready'}
                 className="bf-chat-slideover__submit"
               >
-                <PaperPlaneIcon className="bf-icon-sm" />
+                <PaperPlaneIcon className="bf-icon-md" />
                 <span className="bf-show-desktop">Send</span>
               </Button>
             </form>
