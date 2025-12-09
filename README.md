@@ -43,7 +43,10 @@ BetterFeed addresses the intention-action gap between wanting to learn and defau
 - **marked 17.0.0** - Markdown parsing for AI responses
 
 ### External APIs
-- **arXiv API** - Scientific preprint articles (free, no auth required)
+- **arXiv API** - Academic research preprint articles (free, no auth required)
+- **Hacker News Firebase API** - Tech news articles (free, no auth required)
+- **ScienceDaily RSS** - Science-related current events articles (free, no auth required)
+- **AlphaVantage News Sentiemnt** - Investor sentiment articles (free, ALPHAVANTAGE_API_KEY required)
 
 ## Setup Instructions
 
