@@ -515,7 +515,7 @@ For complete SQL schema, see `sql/schema.sql`.
 
 **Robbie:** Added in the AI functionality to the chat panel. Fixed the bug with the searchbar causing the website to crash. Fixed the bug where the Latex text in the AI chat panel would not render correctly. Fixed the bug where the AI chat panel would not render correctly on mobile. Added in functionality for the view component of the feed.
 
-**Veyd:**
+**Veyd:** Designed basis of the frontend. Implemented categorized APIs to replace purely arXiv and integrated with the category tabs. Fixed the layout of the category bar to be more user-friendly. Worked on bug where the feed automatically scrolls to the bottom of the screen when exiting the chat.
 
 **Kyle:** Fixed bug where the background gradient reset after each article. Fixed bug in category bar where the categories were overlapping. Redesigned category bar and added horizontal scroll. Give user more intuitive options when switching AI modes.
 
