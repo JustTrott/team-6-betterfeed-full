@@ -102,7 +102,7 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen, categ
           pages: old.pages.map((page) => ({
             ...page,
             items: page.items.map((item) =>
-              item.id === post.id
+              String(item.id) === String(post.id)
                 ? { ...item, like_count: likeCount, save_count: saveCount }
                 : item
             ),
@@ -116,13 +116,13 @@ export const FeedCard = ({ post, isLiked, isSaved, onLike, onSave, onOpen, categ
     staleTime: 2 * 60 * 1000, // 2 minutes
   })
   
-  // Calculate interaction counts from loaded data
-  const likeCount = interactionsData 
-    ? interactionsData.filter((i) => i.interaction_type === 'like').length 
-    : post.like_count
-  const saveCount = interactionsData 
-    ? interactionsData.filter((i) => i.interaction_type === 'save').length 
-    : post.save_count
+  // Calculate interaction counts from loaded data or fallback to post counts
+  const likeCount = interactionsData
+    ? interactionsData.filter((i) => i.interaction_type === 'like').length
+    : post.like_count ?? 0
+  const saveCount = interactionsData
+    ? interactionsData.filter((i) => i.interaction_type === 'save').length
+    : post.save_count ?? 0
 
   const minSwipeDistance = 50 // Minimum distance for a swipe
 

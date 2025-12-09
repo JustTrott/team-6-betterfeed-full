@@ -169,8 +169,69 @@ export const useFeed = () => {
       return
     }
 
+    // Ensure we have a numeric post ID for interactions (needed for API)
+    let normalizedPostId: number | string = postId
+    const numericFromString = Number.parseInt(String(postId), 10)
+
+    if (typeof postId === 'number') {
+      normalizedPostId = postId
+    } else if (!Number.isNaN(numericFromString)) {
+      normalizedPostId = numericFromString
+    } else {
+      // Persist the post to obtain a numeric ID
+      try {
+        const createResponse = await fetch('/api/posts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken || ''}`,
+          },
+          body: JSON.stringify({
+            title: currentPost.title,
+            content: currentPost.content,
+            article_url: currentPost.article_url,
+            thumbnail_url: currentPost.thumbnail_url,
+          }),
+        })
+
+        if (!createResponse.ok) {
+          throw new Error('Failed to create post before interaction')
+        }
+
+        const created = await createResponse.json()
+        const newId = Array.isArray(created) && created[0]?.id ? created[0].id : created?.id
+        if (typeof newId === 'number') {
+          normalizedPostId = newId
+
+          // Update posts cache to swap in numeric ID
+          queryClient.setQueryData<PostsQueryData>(['posts', category], (old) => {
+            if (!old) return old
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                items: page.items.map((p) =>
+                  String(p.id) === String(postId)
+                    ? { ...p, id: newId, like_count: p.like_count ?? 0, save_count: p.save_count ?? 0 }
+                    : p
+                ),
+              })),
+            }
+          })
+        }
+      } catch (error) {
+        console.error(error)
+        pushToast({
+          title: 'Unable to like/save',
+          description: 'Could not prepare this post for interactions.',
+          variant: 'error',
+        })
+        return
+      }
+    }
+
     const targetSet = type === 'like' ? interactions.likes : interactions.saves
-    const isActive = targetSet.has(postId)
+    const isActive = targetSet.has(postId) || targetSet.has(normalizedPostId)
 
     // Optimistic update for interactions and counts
     queryClient.setQueryData(['user-interactions', user.id], (old: InteractionState) => {
@@ -180,8 +241,9 @@ export const useFeed = () => {
       const target = type === 'like' ? newInteractions.likes : newInteractions.saves
       if (isActive) {
         target.delete(postId)
+        target.delete(normalizedPostId)
       } else {
-        target.add(postId)
+        target.add(normalizedPostId)
       }
       return newInteractions
     })
@@ -193,7 +255,7 @@ export const useFeed = () => {
         pages: old.pages.map((page) => ({
           ...page,
           items: page.items.map((post) => {
-            if (String(post.id) !== String(postId)) return post
+            if (String(post.id) !== String(normalizedPostId)) return post
             const delta = isActive ? -1 : 1
             const likeCount = post.like_count ?? 0
             const saveCount = post.save_count ?? 0
@@ -208,7 +270,7 @@ export const useFeed = () => {
 
     try {
       // Check if interaction already exists
-      const interactionsResponse = await fetch(`/api/interactions/${postId}`)
+      const interactionsResponse = await fetch(`/api/interactions/${normalizedPostId}`)
       const existingInteractions: Interaction[] = interactionsResponse.ok
         ? await interactionsResponse.json()
         : []
@@ -237,11 +299,12 @@ export const useFeed = () => {
           old.saves.forEach((id) => newInteractions.saves.add(id))
           const target = type === 'like' ? newInteractions.likes : newInteractions.saves
           target.delete(postId)
+          target.delete(normalizedPostId)
           return newInteractions
         })
 
         // Refresh interactions to get updated counts
-        const updatedInteractionsResponse = await fetch(`/api/interactions/${postId}`)
+        const updatedInteractionsResponse = await fetch(`/api/interactions/${normalizedPostId}`)
         if (updatedInteractionsResponse.ok) {
           const updatedInteractions: Interaction[] = await updatedInteractionsResponse.json()
           const likeCount = updatedInteractions.filter((i) => i.interaction_type === 'like').length
@@ -254,7 +317,7 @@ export const useFeed = () => {
               pages: old.pages.map((page) => ({
                 ...page,
                 items: page.items.map((post) =>
-                  String(post.id) === String(postId)
+                  String(post.id) === String(normalizedPostId)
                     ? {
                         ...post,
                         like_count: likeCount,
@@ -275,7 +338,7 @@ export const useFeed = () => {
             Authorization: `Bearer ${accessToken || ''}`,
           },
           body: JSON.stringify({
-            post_id: typeof postId === 'string' ? parseInt(postId, 10) : postId,
+            post_id: typeof normalizedPostId === 'number' ? normalizedPostId : parseInt(String(normalizedPostId), 10),
             interaction_type: type,
           }),
         })
@@ -290,12 +353,12 @@ export const useFeed = () => {
           old.likes.forEach((id) => newInteractions.likes.add(id))
           old.saves.forEach((id) => newInteractions.saves.add(id))
           const target = type === 'like' ? newInteractions.likes : newInteractions.saves
-          target.add(postId)
+          target.add(normalizedPostId)
           return newInteractions
         })
 
         // Refresh interactions to get updated counts
-        const updatedInteractionsResponse = await fetch(`/api/interactions/${postId}`)
+        const updatedInteractionsResponse = await fetch(`/api/interactions/${normalizedPostId}`)
         if (updatedInteractionsResponse.ok) {
           const updatedInteractions: Interaction[] = await updatedInteractionsResponse.json()
           const likeCount = updatedInteractions.filter((i) => i.interaction_type === 'like').length
@@ -308,7 +371,7 @@ export const useFeed = () => {
               pages: old.pages.map((page) => ({
                 ...page,
                 items: page.items.map((post) =>
-                  String(post.id) === String(postId)
+                  String(post.id) === String(normalizedPostId)
                     ? {
                         ...post,
                         like_count: likeCount,
