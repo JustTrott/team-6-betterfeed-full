@@ -104,18 +104,22 @@ async function fetchHackerNews(limit: number): Promise<Article[]> {
   }
 }
 
-function parseScienceDailyRSS(xml: string): Array<{ title: string; link: string }> {
-  const items: Array<{ title: string; link: string }> = []
+function parseScienceDailyRSS(xml: string): Array<{ title: string; link: string; description?: string }> {
+  const items: Array<{ title: string; link: string; description?: string }> = []
   const itemMatches = xml.matchAll(/<item>([\s\S]*?)<\/item>/g)
 
   for (const match of itemMatches) {
     const item = match[1]
     const titleMatch = item.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>|<title>([\s\S]*?)<\/title>/i)
     const linkMatch = item.match(/<link>([\s\S]*?)<\/link>/i)
+    const descMatch = item.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>|<description>([\s\S]*?)<\/description>/i)
+    
     const title = (titleMatch && (titleMatch[1] || titleMatch[2]) || '').trim()
     const link = (linkMatch && linkMatch[1] || '').trim()
+    const description = (descMatch && (descMatch[1] || descMatch[2]) || '').trim()
+    
     if (title && link) {
-      items.push({ title, link })
+      items.push({ title, link, description: description || undefined })
     }
   }
 
@@ -128,7 +132,16 @@ async function fetchScienceDaily(limit: number): Promise<Article[]> {
     if (!response.ok) throw new Error(`ScienceDaily RSS failed: ${response.status}`)
     const xml = await response.text()
     const parsed = parseScienceDailyRSS(xml).slice(0, limit)
-    return parsed.map((entry) => formatArticle(entry.title, entry.link, 'ScienceDaily'))
+    return parsed.map((entry) => {
+      const article = formatArticle(entry.title, entry.link, 'ScienceDaily')
+      // Store description if available
+      if (entry.description && entry.description.length > 20) {
+        // Strip HTML tags from description
+        const cleanDesc = entry.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        article.content = cleanDesc
+      }
+      return article
+    })
   } catch (error) {
     console.error('[ScienceDaily] fetch failed:', error)
     return []
@@ -308,27 +321,30 @@ async function fetchArticleContent(url: string): Promise<string | null> {
     const html = await res.text()
     const text = extractArticleContent(html)
     
-    // Quality check: if extracted content is too short or looks like boilerplate, return null
-    if (
+    // Quality check: ONLY reject obviously broken/garbage content
+    // Be very conservative - when in doubt, let it through
+    const isBroken = (
       !text ||
-      text.length < 100 || 
-      text.includes('Bloomberg quickly and accurately delivers') ||
-      text.includes('Sign In Subscribe Search') ||
-      text.match(/Americas.*EMEA.*Asia Pacific/i) ||
-      // Reject skeleton loaders and ASCII art (repeated block characters)
-      text.match(/██{5,}/) || // 5 or more consecutive block characters
-      text.match(/(██\s*){10,}/) || // 10+ block characters with spaces
-      // Reject content that's mostly non-alphanumeric (usually JavaScript artifacts)
-      (text.replace(/[a-zA-Z0-9\s]/g, '').length / text.length > 0.3) ||
-      // Reject "Talk to sales" and other common SaaS landing page text
-      text.includes('Talk to sales') ||
-      text.includes('[ESC] Exit Terminal') ||
-      // Reject if more than 30% of words are single characters (usually broken rendering)
-      (text.split(/\s+/).filter(word => word.length === 1).length / text.split(/\s+/).length > 0.3)
-    ) {
-      console.warn(`[fetchArticleContent] Low quality content from ${url}`)
+      text.length < 50 || // Very short
+      // Only reject if content is EXTREMELY broken
+      text.match(/██{20,}/) || // 20+ consecutive block characters
+      text.match(/(██\s*){30,}/) || // 30+ block characters with spaces
+      // Only reject if content is OVERWHELMINGLY non-text
+      (text.replace(/[a-zA-Z0-9\s]/g, '').length / text.length > 0.7) || // 70%+ special chars
+      // Only reject very specific broken patterns
+      (text.includes('Talk to sales') && text.includes('[ESC] Exit Terminal')) || // Both present
+      (text.includes('GitHub Copilot') && text.includes('You signed in with another tab')) || // Both present
+      // Only reject if ALMOST ALL words are single characters
+      (text.split(/\s+/).filter(word => word.length === 1).length / text.split(/\s+/).length > 0.7) // 70%+ single chars
+    )
+    
+    if (isBroken) {
+      console.warn(`[fetchArticleContent] Rejecting broken content from ${url}: ${text.substring(0, 100)}`)
       return null
     }
+    
+    console.log(`[fetchArticleContent] Accepted content from ${url}: ${text.length} chars, starts with: ${text.substring(0, 100)}`)
+
     
     // Limit to 3000 characters for summarization
     return text.slice(0, 3000)
@@ -361,11 +377,21 @@ async function enrichWithContentAndSummary(articles: Article[], generateSummarie
       const scrapedContent = await fetchArticleContent(article.url)
       
       if (!scrapedContent) {
-        // If scraping fails, use a fallback message
+        // If scraping fails, use a source-appropriate fallback message
         console.log(`[Enrichment] Using fallback for: ${article.title.substring(0, 50)}...`)
+        
+        let fallbackMessage = ''
+        if (article.source === 'Hacker News') {
+          fallbackMessage = `This is a trending tech article from Hacker News. Visit the link to read the full discussion and article: ${article.title}`
+        } else if (article.source === 'ScienceDaily') {
+          fallbackMessage = `This research article from ScienceDaily discusses: ${article.title}. Read the full article for detailed findings.`
+        } else {
+          fallbackMessage = `Read this article from ${article.source}: ${article.title}`
+        }
+        
         return { 
           ...article, 
-          content: `Read this article from ${article.source} to learn more about: ${article.title}`
+          content: fallbackMessage
         }
       }
 
@@ -419,18 +445,60 @@ async function persistArticles(articles: Article[]): Promise<Article[]> {
 
   // OPTIMIZATION 2: Separate existing and new articles
   const newArticles: Article[] = []
+  const articlesToUpdate: Article[] = []
   
   for (const article of articles) {
     const existing = existingUrlMap.get(article.url)
     if (existing) {
-      stored.push({
-        ...article,
-        id: existing.id,
-        content: existing.content,
-      })
+      // If existing post has no content (NULL), treat it as needing update
+      if (!existing.content && article.content) {
+        articlesToUpdate.push({
+          ...article,
+          id: existing.id,
+        })
+      } else {
+        // Use existing content if it has one, otherwise use new content
+        stored.push({
+          ...article,
+          id: existing.id,
+          content: existing.content || article.content,
+        })
+      }
     } else {
       newArticles.push(article)
     }
+  }
+
+  // Update existing posts that had NULL content
+  if (articlesToUpdate.length > 0) {
+    console.log(`[Persist] Updating ${articlesToUpdate.length} posts with new summaries`)
+    
+    const updateResults = await Promise.allSettled(
+      articlesToUpdate.map(async (article) => {
+        const { data: updatedPost, error: updateError } = await supabaseAdmin!
+          .from('posts')
+          .update({ content: article.content })
+          .eq('id', article.id)
+          .select()
+          .single()
+
+        if (updateError) {
+          console.error(`[Persist] Error updating post ${article.id}:`, updateError.message)
+          return article
+        }
+        
+        return {
+          ...article,
+          content: updatedPost.content,
+        }
+      })
+    )
+
+    const updatedArticles = updateResults
+      .filter(r => r.status === 'fulfilled')
+      .map(r => (r as PromiseFulfilledResult<Article>).value)
+    
+    stored.push(...updatedArticles)
   }
 
   // Generate summaries for new articles only
@@ -483,7 +551,7 @@ async function persistArticles(articles: Article[]): Promise<Article[]> {
     }
   }
 
-  console.log(`[Persist] Stored ${stored.length} articles (${existingPosts?.length || 0} existing, ${newArticles.length} new)`)
+  console.log(`[Persist] Stored ${stored.length} articles (${existingPosts?.length || 0} existing, ${articlesToUpdate.length} updated, ${newArticles.length} new)`)
   return stored
 }
 
