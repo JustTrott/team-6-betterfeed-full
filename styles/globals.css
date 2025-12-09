@@ -233,7 +233,6 @@ h6,
   letter-spacing: 0.01em;
 }
 
-/* Header */
 .bf-header {
   position: sticky;
   top: 0;
@@ -242,6 +241,13 @@ h6,
   background: linear-gradient(90deg, rgba(28, 37, 65, 0.85), rgba(28, 37, 65, 0.72));
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 18px 32px -26px rgba(17, 26, 50, 0.65);
+  
+  /* iOS Safari fix: Force hardware acceleration */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  will-change: transform;
 }
 
 .bf-header__inner {

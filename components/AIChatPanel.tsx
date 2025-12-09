@@ -98,10 +98,9 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
   useEffect(() => {
     if (!open) return undefined
 
-    // Save current scroll position (account for visual viewport shifts)
-    const baseScroll = window.scrollY || window.pageYOffset
-    const viewportOffset = window.visualViewport?.offsetTop ?? 0
-    scrollPositionRef.current = baseScroll + viewportOffset
+    // FIXED: Save scroll position BEFORE any body modifications
+    const savedScrollPosition = window.scrollY || window.pageYOffset
+    scrollPositionRef.current = savedScrollPosition
     restoreScrollQueuedRef.current = false
 
     // Lock body scroll when panel is open
@@ -115,7 +114,7 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     
     document.body.style.overflow = 'hidden'
     document.body.style.position = 'fixed'
-    document.body.style.top = `-${scrollPositionRef.current}px`
+    document.body.style.top = `-${savedScrollPosition}px`
     document.body.style.width = '100%'
     document.documentElement.style.overscrollBehaviorY = 'contain'
     document.body.style.overscrollBehaviorY = 'contain'
@@ -132,9 +131,8 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
       
-      // Capture latest offset before restoring styles (supports keyboard viewport shifts)
-      const topValue = document.body.style.top
-      const savedScrollPosition = topValue ? Math.abs(parseFloat(topValue.replace('px', ''))) : scrollPositionRef.current
+      // FIXED: Use the originally saved position (don't re-read body.style.top)
+      const positionToRestore = savedScrollPosition
       
       // Restore body styles
       document.body.style.overflow = originalStyle
@@ -145,15 +143,16 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
       document.body.style.overscrollBehaviorY = originalBodyOverscroll
       document.documentElement.style.overflow = originalHtmlOverflow
       
-      // Restore scroll position after styles are applied
+      // Restore scroll position
       if (!restoreScrollQueuedRef.current) {
         restoreScrollQueuedRef.current = true
-        // Double RAF + timeout to survive keyboard closing delays
+        
+        // Immediate restoration
+        window.scrollTo(0, positionToRestore)
+        
+        // Backup restoration in RAF
         requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            window.scrollTo(0, savedScrollPosition)
-            setTimeout(() => window.scrollTo(0, savedScrollPosition), 50)
-          })
+          window.scrollTo(0, positionToRestore)
         })
       }
     }
@@ -437,42 +436,37 @@ export const AIChatPanel = ({ open, onClose, post, style }: AIChatPanelProps) =>
                         )
                       })}
                       {(status === 'submitted' || status === 'streaming') ? (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="bf-chat-slideover__status"
-                        >
-                          {selectedStyleMeta.label} drafting…
-                        </motion.div>
+                        <Message from="assistant">
+                          <div className="bf-chat-slideover__message-loading">Thinking…</div>
+                        </Message>
                       ) : null}
                     </>
                   )}
                 </ConversationContent>
                 <ConversationScrollButton />
               </Conversation>
-
-              <form className="bf-chat-slideover__composer" onSubmit={onSubmit}>
-                <Input
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask for a takeaway, compare viewpoints, or stress-test the point…"
-                  className="bf-chat-slideover__input"
-                  aria-label="Message the AI assistant"
-                  disabled={status !== 'ready'}
-                />
-                <Button
-                  type="submit"
-                  variant="default"
-                  className="bf-chat-slideover__submit"
-                  disabled={!input.trim() || status !== 'ready'}
-                >
-                  <PaperPlaneIcon className="bf-icon-md" />
-                  <span className="bf-show-desktop">Send</span>
-                </Button>
-              </form>
             </section>
+
+            <form onSubmit={onSubmit} className="bf-chat-slideover__input-form">
+              <Input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask a question or request a summary…"
+                className="bf-chat-slideover__input"
+                disabled={status !== 'ready'}
+              />
+              <Button
+                type="submit"
+                disabled={!input.trim() || status !== 'ready'}
+                className="bf-chat-slideover__submit"
+              >
+                <PaperPlaneIcon className="bf-icon-sm" />
+                <span className="bf-show-desktop">Send</span>
+              </Button>
+            </form>
           </motion.aside>
         </>
       ) : null}
